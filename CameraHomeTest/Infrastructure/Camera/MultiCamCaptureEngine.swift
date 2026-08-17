@@ -20,6 +20,7 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
     private let frontOutputQueue = DispatchQueue(label: "com.maksbarbaruk.dualcamera.frames.front", qos: .userInitiated)
     private let eventLock = NSLock()
     private let frameEncoder = PixelBufferEncoder()
+    private let timingPolicy = CaptureTimingPolicy.standard
     private let rearCollector = VideoFrameCollector()
     private let frontCollector = VideoFrameCollector()
 
@@ -143,11 +144,13 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
 
         let rearFrame = try await rearCollector.captureNextFrame()
         emit(.capturePhase(.rearCaptured))
-        let targetFrontUptime = rearFrame.uptimeNanoseconds + 1_500_000_000
         emit(.capturePhase(.waitingForFront))
-        let currentUptime = DispatchTime.now().uptimeNanoseconds
-        if targetFrontUptime > currentUptime {
-            try await Task<Never, Never>.sleep(nanoseconds: targetFrontUptime - currentUptime)
+        let remainingDelay = timingPolicy.remainingDelay(
+            afterRearUptime: rearFrame.uptimeNanoseconds,
+            currentUptime: DispatchTime.now().uptimeNanoseconds
+        )
+        if remainingDelay > 0 {
+            try await Task<Never, Never>.sleep(nanoseconds: remainingDelay)
         }
         let frontFrame = try await frontCollector.captureNextFrame()
         emit(.capturePhase(.frontCaptured))

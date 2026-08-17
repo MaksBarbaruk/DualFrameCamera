@@ -198,7 +198,7 @@ Last updated: 2026-08-17
 | Local persistence | Complete | Each pair is staged as `rear.heic`, `front.heic`, and `metadata.json`, then atomically moved into Application Support. Startup removes abandoned staging directories. |
 | Feed image loading | Complete | ImageIO creates size-bounded, orientation-correct thumbnails off the main actor with a bounded in-memory cache. Full source files remain independent. |
 | Capture-to-review flow | Complete | Successful persistence refreshes Moments, selects the feed tab, and opens the newly saved pair in detail. |
-| Automated tests | In progress | Coordinator and atomic repository tests compile in the test target. The latest execution attempt is blocked before test-host launch by local CoreSimulator data-migration failures; `build-for-testing` succeeds. Camera timing/state tests remain to add. |
+| Automated tests | Implemented; runner blocked locally | Coordinator routing, exact monotonic timing math, elapsed-work compensation, overlapping-shutter rejection, capture persistence/error mapping, atomic repository publication, staging cleanup, and deletion have tests. The full suite builds; execution is blocked before test-host launch because every available local CoreSimulator runtime currently fails data migration. |
 | Physical-device verification | Blocked by device availability | Known devices are currently offline; continue simulator-safe work first. |
 | README and submission notes | In progress | README skeleton contains build/test steps and architecture; hardware measurements and final trade-offs remain pending. |
 | Public repository | Pending | Authenticated GitHub connection is available; publish after reviewable commits exist. |
@@ -220,3 +220,10 @@ Last updated: 2026-08-17
 - Measure actual rear exposure latency and rear-to-front interval.
 - Select and document the sharpness/latency trade-off for photo-quality prioritization or video-buffer extraction.
 - Record tested-device models and operating-system versions in the README.
+
+### Current capture trade-offs
+
+- Video-buffer extraction keeps both cameras continuously warm and makes the rear-to-front interval deterministic without reconnecting capture outputs.
+- The current interval can land up to one source-frame period after the 1.5-second target because the front asset is the first frame delivered after that monotonic deadline. This must be measured under the selected 30/20/15 fps pressure modes.
+- HEIF encoding runs after both frames are retained, away from the main actor, so encoding time does not shift the front capture deadline.
+- The provisional path favors predictable sequencing and session stability. Physical-device testing still owns the decision on whether its resolution and motion sharpness meet the assignment bar.
