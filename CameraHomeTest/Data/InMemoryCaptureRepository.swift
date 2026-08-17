@@ -15,8 +15,31 @@ actor InMemoryCaptureRepository: CaptureRepository {
         storage[id]
     }
 
-    func save(_ capture: CapturePair) {
+    func save(_ payload: CapturedPairPayload) -> CapturePair {
+        let directory = URL(fileURLWithPath: "/memory/")
+            .appendingPathComponent(payload.id.uuidString, isDirectory: true)
+        let capture = CapturePair(
+            id: payload.id,
+            createdAt: payload.createdAt,
+            rear: CaptureAsset(
+                position: .rear,
+                fileURL: directory.appendingPathComponent("rear.heic"),
+                pixelWidth: payload.rear.pixelWidth,
+                pixelHeight: payload.rear.pixelHeight,
+                capturedAt: payload.rear.capturedAt,
+                captureUptimeNanoseconds: payload.rear.captureUptimeNanoseconds
+            ),
+            front: CaptureAsset(
+                position: .front,
+                fileURL: directory.appendingPathComponent("front.heic"),
+                pixelWidth: payload.front.pixelWidth,
+                pixelHeight: payload.front.pixelHeight,
+                capturedAt: payload.front.capturedAt,
+                captureUptimeNanoseconds: payload.front.captureUptimeNanoseconds
+            )
+        )
         storage[capture.id] = capture
+        return capture
     }
 
     func delete(id: UUID) {

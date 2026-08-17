@@ -25,4 +25,16 @@ struct AppCoordinatorTests {
 
         #expect(coordinator.path.count == 1)
     }
+
+    @Test
+    func presentingSavedCaptureRefreshesFeedAndShowsDetail() {
+        let coordinator = AppCoordinator()
+        let captureID = UUID()
+
+        coordinator.presentSavedCapture(id: captureID)
+
+        #expect(coordinator.selectedTab == .feed)
+        #expect(coordinator.feedRevision == 1)
+        #expect(coordinator.path == [.captureDetail(captureID)])
+    }
 }

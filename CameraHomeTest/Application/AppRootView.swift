@@ -14,7 +14,8 @@ struct AppRootView: View {
             TabView(selection: $coordinator.selectedTab) {
                 CameraView(
                     cameraClient: container.cameraCaptureClient,
-                    previewSource: container.cameraPreviewSource
+                    previewSource: container.cameraPreviewSource,
+                    repository: container.captureRepository
                 )
                     .tag(AppTab.camera)
                     .tabItem {

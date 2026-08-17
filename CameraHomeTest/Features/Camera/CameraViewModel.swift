@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class CameraViewModel {
     private let cameraClient: any CameraCaptureClient
+    private let persistCapture: PersistCapturePairUseCase
     private var eventTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
 
@@ -13,8 +14,12 @@ final class CameraViewModel {
     private(set) var supportTitle = "Preparing cameras"
     private(set) var supportMessage = "Checking this device for simultaneous front and rear capture."
 
-    init(cameraClient: any CameraCaptureClient) {
+    init(
+        cameraClient: any CameraCaptureClient,
+        repository: any CaptureRepository
+    ) {
         self.cameraClient = cameraClient
+        persistCapture = PersistCapturePairUseCase(repository: repository)
     }
 
     var isCaptureEnabled: Bool {
@@ -22,7 +27,18 @@ final class CameraViewModel {
     }
 
     var showsSupportCard: Bool {
-        capability != .available
+        guard capability == .available else { return true }
+        switch state {
+        case .failed, .interrupted:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var canRetry: Bool {
+        if case .failed = state { return true }
+        return false
     }
 
     var frontCaptureProgress: Double? {
@@ -105,15 +121,21 @@ final class CameraViewModel {
         }
     }
 
-    func capture() async {
-        guard isCaptureEnabled else { return }
+    func capture() async -> CapturePair? {
+        guard isCaptureEnabled else { return nil }
 
         state = .capturingRear
         do {
-            _ = try await cameraClient.capturePair()
+            let payload = try await cameraClient.capturePair()
+            state = .saving
+            let capture = try await persistCapture(payload)
             state = .ready
+            return capture
         } catch {
+            supportTitle = "Capture failed"
+            supportMessage = error.localizedDescription
             state = .failed(message: error.localizedDescription)
+            return nil
         }
     }
 
@@ -125,6 +147,11 @@ final class CameraViewModel {
         Task {
             await cameraClient.stop()
         }
+    }
+
+    func retry() async {
+        await cameraClient.stop()
+        await prepare()
     }
 
     private func startObservingEvents() {
@@ -148,6 +175,8 @@ final class CameraViewModel {
             }
         case .interrupted(let message):
             progressTask?.cancel()
+            supportTitle = "Camera paused"
+            supportMessage = message
             state = .interrupted(message: message)
         case .interruptionEnded:
             state = .starting
@@ -156,6 +185,8 @@ final class CameraViewModel {
                 state = .interrupted(message: "The cameras paused because the device needs to cool down.")
             }
         case .runtimeError(let message, let recovered):
+            supportTitle = recovered ? "Camera recovered" : "Camera error"
+            supportMessage = message
             state = recovered ? .ready : .failed(message: message)
         case .capturePhase(let phase):
             handle(phase)

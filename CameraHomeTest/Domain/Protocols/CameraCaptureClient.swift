@@ -1,6 +1,6 @@
 import Foundation
 
-struct CapturedImagePayload: Sendable {
+nonisolated struct CapturedImagePayload: Sendable {
     let data: Data
     let pixelWidth: Int
     let pixelHeight: Int
@@ -8,7 +8,7 @@ struct CapturedImagePayload: Sendable {
     let captureUptimeNanoseconds: UInt64
 }
 
-struct CapturedPairPayload: Sendable {
+nonisolated struct CapturedPairPayload: Sendable {
     let id: UUID
     let createdAt: Date
     let rear: CapturedImagePayload

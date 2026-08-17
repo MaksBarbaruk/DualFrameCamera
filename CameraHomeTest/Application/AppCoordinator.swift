@@ -31,6 +31,7 @@ enum AppRoute: Hashable, Sendable {
 final class AppCoordinator {
     var selectedTab: AppTab = .camera
     var path: [AppRoute] = []
+    private(set) var feedRevision = 0
 
     func select(_ tab: AppTab) {
         selectedTab = tab
@@ -39,6 +40,12 @@ final class AppCoordinator {
 
     func showCapture(id: UUID) {
         path.append(.captureDetail(id))
+    }
+
+    func presentSavedCapture(id: UUID) {
+        feedRevision += 1
+        selectedTab = .feed
+        path = [.captureDetail(id)]
     }
 
     func navigateBack() {
@@ -50,4 +57,3 @@ final class AppCoordinator {
         path.removeAll()
     }
 }
-

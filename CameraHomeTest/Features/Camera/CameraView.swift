@@ -1,14 +1,22 @@
 import SwiftUI
+import UIKit
 
 struct CameraView: View {
+    @Environment(AppCoordinator.self) private var coordinator
     @State private var viewModel: CameraViewModel
     private let previewSource: any CameraPreviewSource
 
     init(
         cameraClient: any CameraCaptureClient,
-        previewSource: any CameraPreviewSource
+        previewSource: any CameraPreviewSource,
+        repository: any CaptureRepository
     ) {
-        _viewModel = State(initialValue: CameraViewModel(cameraClient: cameraClient))
+        _viewModel = State(
+            initialValue: CameraViewModel(
+                cameraClient: cameraClient,
+                repository: repository
+            )
+        )
         self.previewSource = previewSource
     }
 
@@ -117,21 +125,34 @@ private extension CameraView {
     }
 
     var supportCard: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "iphone.gen3.radiowaves.left.and.right")
-                .font(.title3)
-                .foregroundStyle(AppTheme.accent)
-                .frame(width: 34, height: 34)
-                .background(AppTheme.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 11))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "iphone.gen3.radiowaves.left.and.right")
+                    .font(.title3)
+                    .foregroundStyle(AppTheme.accent)
+                    .frame(width: 34, height: 34)
+                    .background(AppTheme.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 11))
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(viewModel.supportTitle)
-                    .font(.subheadline.bold())
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(viewModel.supportTitle)
+                        .font(.subheadline.bold())
 
-                Text(viewModel.supportMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(viewModel.supportMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if viewModel.canRetry {
+                Button {
+                    Task { await viewModel.retry() }
+                } label: {
+                    Label("Try Again", systemImage: "arrow.clockwise")
+                        .font(.caption.bold())
+                }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.accent)
             }
         }
         .padding(14)
@@ -146,7 +167,12 @@ private extension CameraView {
             Spacer()
 
             Button {
-                Task { await viewModel.capture() }
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                Task {
+                    guard let capture = await viewModel.capture() else { return }
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    coordinator.presentSavedCapture(id: capture.id)
+                }
             } label: {
                 ZStack {
                     Circle()
@@ -325,6 +351,11 @@ private struct CaptureSequenceHUD: View {
 
 #Preview {
     let camera = UnavailableCameraCaptureClient()
-    CameraView(cameraClient: camera, previewSource: camera)
+    CameraView(
+        cameraClient: camera,
+        previewSource: camera,
+        repository: InMemoryCaptureRepository()
+    )
+        .environment(AppCoordinator())
         .preferredColorScheme(.dark)
 }

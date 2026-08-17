@@ -42,6 +42,9 @@ struct FeedView: View {
         .task {
             await viewModel.load()
         }
+        .onChange(of: coordinator.feedRevision) {
+            Task { await viewModel.load() }
+        }
     }
 }
 
@@ -203,4 +206,3 @@ private struct CaptureGridTile: View {
         .environment(AppCoordinator())
         .preferredColorScheme(.dark)
 }
-

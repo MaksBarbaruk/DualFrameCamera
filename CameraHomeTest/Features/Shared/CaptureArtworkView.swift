@@ -74,32 +74,40 @@ private struct LocalAssetImage: View {
     @State private var image: UIImage?
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: fallbackColors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        GeometryReader { geometry in
+            ZStack {
+                LinearGradient(
+                    colors: fallbackColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
 
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Image(systemName: symbol)
-                    .font(.system(size: 52, weight: .light))
-                    .foregroundStyle(.white.opacity(0.42))
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: symbol)
+                        .font(.system(size: 52, weight: .light))
+                        .foregroundStyle(.white.opacity(0.42))
+                }
+            }
+            .clipped()
+            .task(id: requestID(for: geometry.size)) {
+                guard asset.fileURL.isFileURL else { return }
+                image = await ThumbnailProvider.shared.image(
+                    at: asset.fileURL,
+                    maxPixelSize: maxPixelSize(for: geometry.size)
+                )
             }
         }
-        .clipped()
-        .task(id: asset.fileURL) {
-            guard asset.fileURL.isFileURL else { return }
-            let url = asset.fileURL
-            let data = await Task.detached(priority: .utility) {
-                try? Data(contentsOf: url, options: [.mappedIfSafe])
-            }.value
-            image = data.flatMap(UIImage.init(data:))
-        }
+    }
+
+    private func requestID(for size: CGSize) -> String {
+        "\(asset.fileURL.path)#\(maxPixelSize(for: size))"
+    }
+
+    private func maxPixelSize(for size: CGSize) -> Int {
+        Int(max(size.width, size.height) * UIScreen.main.scale)
     }
 }
-

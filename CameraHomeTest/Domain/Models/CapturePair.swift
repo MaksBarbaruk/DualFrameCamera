@@ -1,6 +1,6 @@
 import Foundation
 
-struct CaptureAsset: Codable, Hashable, Sendable {
+nonisolated struct CaptureAsset: Codable, Hashable, Sendable {
     enum Position: String, Codable, Sendable {
         case rear
         case front
@@ -14,7 +14,7 @@ struct CaptureAsset: Codable, Hashable, Sendable {
     let captureUptimeNanoseconds: UInt64
 }
 
-struct CapturePair: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct CapturePair: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     let createdAt: Date
     let rear: CaptureAsset
@@ -32,4 +32,3 @@ struct CapturePair: Identifiable, Codable, Hashable, Sendable {
         self.front = front
     }
 }
-

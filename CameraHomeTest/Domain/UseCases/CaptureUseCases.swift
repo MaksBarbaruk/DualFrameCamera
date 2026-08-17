@@ -1,6 +1,14 @@
 import Foundation
 
-struct LoadCaptureFeedUseCase: Sendable {
+nonisolated struct PersistCapturePairUseCase: Sendable {
+    let repository: any CaptureRepository
+
+    func callAsFunction(_ payload: CapturedPairPayload) async throws -> CapturePair {
+        try await repository.save(payload)
+    }
+}
+
+nonisolated struct LoadCaptureFeedUseCase: Sendable {
     let repository: any CaptureRepository
 
     func callAsFunction() async throws -> [CapturePair] {
@@ -9,7 +17,7 @@ struct LoadCaptureFeedUseCase: Sendable {
     }
 }
 
-struct LoadCaptureDetailUseCase: Sendable {
+nonisolated struct LoadCaptureDetailUseCase: Sendable {
     let repository: any CaptureRepository
 
     func callAsFunction(id: UUID) async throws -> CapturePair? {
@@ -17,11 +25,10 @@ struct LoadCaptureDetailUseCase: Sendable {
     }
 }
 
-struct DeleteCaptureUseCase: Sendable {
+nonisolated struct DeleteCaptureUseCase: Sendable {
     let repository: any CaptureRepository
 
     func callAsFunction(id: UUID) async throws {
         try await repository.delete(id: id)
     }
 }
-

@@ -8,7 +8,7 @@ struct AppContainer: Sendable {
     static func live() -> AppContainer {
         let camera = MultiCamCaptureEngine()
         return AppContainer(
-            captureRepository: InMemoryCaptureRepository(),
+            captureRepository: FileCaptureRepository(),
             cameraCaptureClient: camera,
             cameraPreviewSource: camera
         )

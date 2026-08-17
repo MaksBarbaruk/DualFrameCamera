@@ -82,7 +82,7 @@ Features
 
 - UI models and app navigation are isolated to `@MainActor`.
 - AVFoundation session configuration and capture state are owned by one serialized camera executor.
-- Capture timing uses `ContinuousClock`, not wall-clock time or a UI timer.
+- Capture timing uses monotonic uptime timestamps, not wall-clock time or a UI timer.
 - File persistence and thumbnail decoding run outside the main actor.
 - Delegate callbacks are bridged into structured concurrency with one continuation owner per capture request.
 
@@ -171,8 +171,8 @@ The grid uses ImageIO downsampling and a bounded in-memory thumbnail cache. Full
 1. `docs: add camera implementation roadmap`
 2. `chore: establish project architecture and test foundation`
 3. `feat: add polished camera and feed UI shell`
-4. `feat: implement resilient multicam session`
-5. `feat: add timed paired capture and local persistence`
+4. `feat: implement resilient multi-camera capture engine`
+5. `feat: persist paired captures and connect review flow`
 6. `test: verify capture orchestration and document tradeoffs`
 
 The public repository will use a neutral product name and will not include company names in its repository name.
@@ -192,11 +192,13 @@ Last updated: 2026-08-17
 | Clean Architecture foundation | Complete | Application, domain, data, feature-ready infrastructure boundaries, dependency container, and use cases compile. |
 | Navigation and progress | Complete | Typed tab/detail navigation and operation-aware centralized error/progress presentation are implemented. |
 | Camera/feed UI | Complete | Polished camera stage, capability messaging, capture progress treatment, feed states, adaptive grid, and swappable detail UI compile and were visually checked in the simulator. |
-| MultiCam session | Pending | Requires implementation; simulator can exercise unsupported-state UI only. |
-| Still-capture topology | Investigation required | Must be selected from real-device measurements described above. |
-| Timed paired capture | Pending | Implement behind a fake camera first, then validate timestamps on hardware. |
-| Local persistence | Pending | Implement atomic two-asset storage and downsampled feed thumbnails. |
-| Automated tests | In progress | Unit-test target is active; initial coordinator tests pass on the iOS Simulator. Capture and persistence tests follow with those features. |
+| MultiCam session | Implemented; hardware validation pending | One `AVCaptureMultiCamSession` discovers a supported device set, configures explicit MultiCam formats, connects both previews and frame outputs, budgets hardware cost, throttles under pressure, and responds to lifecycle/runtime events. Generic simulator and iOS device SDK builds succeed. |
+| Still-capture topology | Provisional implementation complete | Dedicated rear/front `AVCaptureVideoDataOutput` streams provide timestamped frames and off-main HEIF encoding. Physical-device sharpness and format measurements will determine whether this remains the final path. |
+| Timed paired capture | Implemented; hardware validation pending | The rear stream supplies the first frame immediately; the front frame is requested from a monotonic target exactly 1.5 seconds after the rear frame timestamp. UI progress is presentation-only. |
+| Local persistence | Complete | Each pair is staged as `rear.heic`, `front.heic`, and `metadata.json`, then atomically moved into Application Support. Startup removes abandoned staging directories. |
+| Feed image loading | Complete | ImageIO creates size-bounded, orientation-correct thumbnails off the main actor with a bounded in-memory cache. Full source files remain independent. |
+| Capture-to-review flow | Complete | Successful persistence refreshes Moments, selects the feed tab, and opens the newly saved pair in detail. |
+| Automated tests | In progress | Coordinator and atomic repository tests compile in the test target. The latest execution attempt is blocked before test-host launch by local CoreSimulator data-migration failures; `build-for-testing` succeeds. Camera timing/state tests remain to add. |
 | Physical-device verification | Blocked by device availability | Known devices are currently offline; continue simulator-safe work first. |
 | README and submission notes | In progress | README skeleton contains build/test steps and architecture; hardware measurements and final trade-offs remain pending. |
 | Public repository | Pending | Authenticated GitHub connection is available; publish after reviewable commits exist. |
@@ -214,7 +216,7 @@ Last updated: 2026-08-17
 ### Open validation items
 
 - Determine which connected device and front/rear pair produce the best sustainable MultiCam format combination.
-- Confirm the final still-capture output topology accepted by the physical device.
+- Validate the provisional video-buffer still topology on the physical device and compare it with prepared photo-output routing only if sharpness is insufficient.
 - Measure actual rear exposure latency and rear-to-front interval.
 - Select and document the sharpness/latency trade-off for photo-quality prioritization or video-buffer extraction.
 - Record tested-device models and operating-system versions in the README.

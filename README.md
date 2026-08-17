@@ -4,7 +4,7 @@ An iOS 17+ SwiftUI application for creating a paired moment from the rear and fr
 
 ## Current state
 
-The project foundation is in place: typed navigation, dependency injection, operation-aware error/progress presentation, domain and repository boundaries, and a unit-test target. The camera and feed feature implementations are actively in progress.
+The architecture, polished two-screen UI, production MultiCam session, timed paired-frame capture, atomic local persistence, thumbnail pipeline, and capture-to-review navigation are implemented. Generic simulator and iOS device SDK builds succeed. Physical-device validation remains intentionally open for camera timing, sharpness, orientation, and sustained resource cost.
 
 See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the investigation results, target architecture, acceptance criteria, implementation status, and physical-device validation checklist.
 
@@ -51,4 +51,3 @@ xcodebuild \
 - **Features** - Camera, Feed, and Capture Detail presentation
 
 External dependencies are intentionally avoided. The implementation uses SwiftUI, Observation, Swift Concurrency, AVFoundation, ImageIO, and system frameworks.
-
