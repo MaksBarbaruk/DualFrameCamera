@@ -174,6 +174,7 @@ The grid uses ImageIO downsampling and a bounded in-memory thumbnail cache. Full
 4. `feat: implement resilient multi-camera capture engine`
 5. `feat: persist paired captures and connect review flow`
 6. `test: verify capture orchestration and document tradeoffs`
+7. `docs: record implementation handoff status`
 
 The public repository will use a neutral product name and will not include company names in its repository name.
 
@@ -201,13 +202,13 @@ Last updated: 2026-08-17
 | Automated tests | Implemented; runner blocked locally | Coordinator routing, exact monotonic timing math, elapsed-work compensation, overlapping-shutter rejection, capture persistence/error mapping, atomic repository publication, staging cleanup, and deletion have tests. The full suite builds; execution is blocked before test-host launch because every available local CoreSimulator runtime currently fails data migration. |
 | Physical-device verification | Blocked by device availability | Known devices are currently offline; continue simulator-safe work first. |
 | README and submission notes | In progress | README skeleton contains build/test steps and architecture; hardware measurements and final trade-offs remain pending. |
-| Public repository | Pending | Authenticated GitHub connection is available; publish after reviewable commits exist. |
+| Public repository | Complete | Published the reviewable `main` history to the neutral public repository `MaksBarbaruk/DualFrameCamera`. |
 
 ### Baseline environment
 
 - Xcode 26.5, build 17F42.
 - Starter scheme: `CameraHomeTest`.
-- Starter branch: `main`, one initial commit, no remote.
+- Starter branch: `main`, one initial commit; implementation is now tracked by the public `origin` remote.
 - Known but currently unavailable devices:
   - iPhone 14 Pro Max
   - iPhone 16 Pro
