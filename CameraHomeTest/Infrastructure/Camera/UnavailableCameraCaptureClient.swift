@@ -1,6 +1,7 @@
+@preconcurrency import AVFoundation
 import Foundation
 
-actor UnavailableCameraCaptureClient: CameraCaptureClient {
+nonisolated final class UnavailableCameraCaptureClient: CameraCaptureClient, CameraPreviewSource, @unchecked Sendable {
     func authorizationStatus() -> CameraAuthorization {
         .notDetermined
     }
@@ -26,5 +27,17 @@ actor UnavailableCameraCaptureClient: CameraCaptureClient {
     func capturePair() throws -> CapturedPairPayload {
         throw CameraCaptureError.sessionNotReady
     }
-}
 
+    func sessionEvents() -> AsyncStream<CameraSessionEvent> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+
+    func attachPreviewLayer(
+        _ layer: AVCaptureVideoPreviewLayer,
+        position: CaptureAsset.Position
+    ) { }
+
+    func detachPreviewLayer(_ layer: AVCaptureVideoPreviewLayer) { }
+}

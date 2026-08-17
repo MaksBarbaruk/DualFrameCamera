@@ -2,9 +2,11 @@ import Foundation
 
 extension AppContainer {
     static func preview() -> AppContainer {
-        AppContainer(
+        let camera = UnavailableCameraCaptureClient()
+        return AppContainer(
             captureRepository: InMemoryCaptureRepository(captures: CapturePair.previewSamples),
-            cameraCaptureClient: UnavailableCameraCaptureClient()
+            cameraCaptureClient: camera,
+            cameraPreviewSource: camera
         )
     }
 }
@@ -34,4 +36,3 @@ extension CapturePair {
         )
     }
 }
-

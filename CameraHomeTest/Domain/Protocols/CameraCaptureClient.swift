@@ -15,12 +15,12 @@ struct CapturedPairPayload: Sendable {
     let front: CapturedImagePayload
 }
 
-protocol CameraCaptureClient: Sendable {
+nonisolated protocol CameraCaptureClient: Sendable {
     func authorizationStatus() async -> CameraAuthorization
     func requestAuthorization() async -> CameraAuthorization
     func capability() async -> CameraCapability
     func start() async throws
     func stop() async
     func capturePair() async throws -> CapturedPairPayload
+    func sessionEvents() async -> AsyncStream<CameraSessionEvent>
 }
-

@@ -14,6 +14,31 @@ enum CameraCapability: Equatable, Sendable {
     case supportedPairUnavailable
 }
 
+enum CameraPressureLevel: Equatable, Sendable {
+    case nominal
+    case fair
+    case serious
+    case critical
+    case shutdown
+}
+
+enum CameraCapturePhase: Equatable, Sendable {
+    case rearCaptured
+    case waitingForFront
+    case frontCaptured
+    case encoding
+}
+
+enum CameraSessionEvent: Equatable, Sendable {
+    case running
+    case stopped
+    case interrupted(message: String)
+    case interruptionEnded
+    case pressureChanged(CameraPressureLevel)
+    case runtimeError(message: String, recovered: Bool)
+    case capturePhase(CameraCapturePhase)
+}
+
 enum CameraCaptureState: Equatable, Sendable {
     case idle
     case requestingPermission
@@ -65,4 +90,3 @@ enum CameraCaptureError: LocalizedError, Equatable, Sendable {
         }
     }
 }
-

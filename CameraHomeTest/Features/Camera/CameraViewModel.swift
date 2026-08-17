@@ -5,6 +5,8 @@ import Observation
 @Observable
 final class CameraViewModel {
     private let cameraClient: any CameraCaptureClient
+    private var eventTask: Task<Void, Never>?
+    private var progressTask: Task<Void, Never>?
 
     private(set) var state: CameraCaptureState = .idle
     private(set) var capability: CameraCapability?
@@ -44,6 +46,7 @@ final class CameraViewModel {
     }
 
     func prepare() async {
+        startObservingEvents()
         state = .starting
         let capability = await cameraClient.capability()
         self.capability = capability
@@ -115,8 +118,74 @@ final class CameraViewModel {
     }
 
     func stop() {
+        eventTask?.cancel()
+        eventTask = nil
+        progressTask?.cancel()
+        progressTask = nil
         Task {
             await cameraClient.stop()
+        }
+    }
+
+    private func startObservingEvents() {
+        eventTask?.cancel()
+        eventTask = Task { [weak self, cameraClient] in
+            let events = await cameraClient.sessionEvents()
+            for await event in events {
+                guard !Task.isCancelled else { return }
+                self?.handle(event)
+            }
+        }
+    }
+
+    private func handle(_ event: CameraSessionEvent) {
+        switch event {
+        case .running:
+            state = .ready
+        case .stopped:
+            if capability == .available {
+                state = .idle
+            }
+        case .interrupted(let message):
+            progressTask?.cancel()
+            state = .interrupted(message: message)
+        case .interruptionEnded:
+            state = .starting
+        case .pressureChanged(let level):
+            if level == .shutdown {
+                state = .interrupted(message: "The cameras paused because the device needs to cool down.")
+            }
+        case .runtimeError(let message, let recovered):
+            state = recovered ? .ready : .failed(message: message)
+        case .capturePhase(let phase):
+            handle(phase)
+        }
+    }
+
+    private func handle(_ phase: CameraCapturePhase) {
+        switch phase {
+        case .rearCaptured:
+            state = .capturingRear
+        case .waitingForFront:
+            beginFrontProgress()
+        case .frontCaptured:
+            progressTask?.cancel()
+            state = .capturingFront
+        case .encoding:
+            state = .saving
+        }
+    }
+
+    private func beginFrontProgress() {
+        progressTask?.cancel()
+        state = .waitingForFront(progress: 0)
+        progressTask = Task { [weak self] in
+            let steps = 30
+            for step in 1...steps {
+                try? await Task<Never, Never>.sleep(nanoseconds: 50_000_000)
+                guard !Task.isCancelled else { return }
+                self?.state = .waitingForFront(progress: Double(step) / Double(steps))
+            }
         }
     }
 }

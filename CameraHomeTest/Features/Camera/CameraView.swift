@@ -2,9 +2,14 @@ import SwiftUI
 
 struct CameraView: View {
     @State private var viewModel: CameraViewModel
+    private let previewSource: any CameraPreviewSource
 
-    init(cameraClient: any CameraCaptureClient) {
+    init(
+        cameraClient: any CameraCaptureClient,
+        previewSource: any CameraPreviewSource
+    ) {
         _viewModel = State(initialValue: CameraViewModel(cameraClient: cameraClient))
+        self.previewSource = previewSource
     }
 
     var body: some View {
@@ -59,9 +64,9 @@ private extension CameraView {
 
     func cameraStage(height: CGFloat) -> some View {
         ZStack(alignment: .topTrailing) {
-            RearCameraPlaceholder()
+            RearCameraPlaceholder(previewSource: previewSource)
 
-            FrontCameraPlaceholder()
+            FrontCameraPlaceholder(previewSource: previewSource)
                 .frame(width: 118, height: 158)
                 .padding(14)
 
@@ -170,6 +175,8 @@ private extension CameraView {
 }
 
 private struct RearCameraPlaceholder: View {
+    let previewSource: any CameraPreviewSource
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -191,6 +198,8 @@ private struct RearCameraPlaceholder: View {
                 .font(.system(size: 100, weight: .light))
                 .foregroundStyle(.white.opacity(0.12))
 
+            CameraPreviewLayerView(source: previewSource, position: .rear)
+
             ViewfinderGrid()
                 .stroke(.white.opacity(0.08), lineWidth: 0.8)
         }
@@ -198,6 +207,8 @@ private struct RearCameraPlaceholder: View {
 }
 
 private struct FrontCameraPlaceholder: View {
+    let previewSource: any CameraPreviewSource
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -214,6 +225,8 @@ private struct FrontCameraPlaceholder: View {
             Image(systemName: "person.crop.circle.fill")
                 .font(.system(size: 62))
                 .foregroundStyle(.white.opacity(0.82))
+
+            CameraPreviewLayerView(source: previewSource, position: .front)
 
             VStack {
                 Spacer()
@@ -311,6 +324,7 @@ private struct CaptureSequenceHUD: View {
 }
 
 #Preview {
-    CameraView(cameraClient: UnavailableCameraCaptureClient())
+    let camera = UnavailableCameraCaptureClient()
+    CameraView(cameraClient: camera, previewSource: camera)
         .preferredColorScheme(.dark)
 }

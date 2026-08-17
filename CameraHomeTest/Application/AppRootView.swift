@@ -12,7 +12,10 @@ struct AppRootView: View {
 
         NavigationStack(path: $coordinator.path) {
             TabView(selection: $coordinator.selectedTab) {
-                CameraView(cameraClient: container.cameraCaptureClient)
+                CameraView(
+                    cameraClient: container.cameraCaptureClient,
+                    previewSource: container.cameraPreviewSource
+                )
                     .tag(AppTab.camera)
                     .tabItem {
                         Label(AppTab.camera.title, systemImage: AppTab.camera.systemImage)
@@ -53,4 +56,3 @@ struct AppRootView: View {
         .environment(ProgressController())
         .preferredColorScheme(.dark)
 }
-
