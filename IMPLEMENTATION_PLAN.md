@@ -191,7 +191,7 @@ Last updated: 2026-08-17
 | Git hygiene | Complete | `.gitignore` excludes user-specific Xcode state; existing local `xcuserdata` is intentionally not committed. |
 | Clean Architecture foundation | Complete | Application, domain, data, feature-ready infrastructure boundaries, dependency container, and use cases compile. |
 | Navigation and progress | Complete | Typed tab/detail navigation and operation-aware centralized error/progress presentation are implemented. |
-| Camera/feed UI | Pending | Build a polished preview-safe shell before hardware is connected. |
+| Camera/feed UI | Complete | Polished camera stage, capability messaging, capture progress treatment, feed states, adaptive grid, and swappable detail UI compile and were visually checked in the simulator. |
 | MultiCam session | Pending | Requires implementation; simulator can exercise unsupported-state UI only. |
 | Still-capture topology | Investigation required | Must be selected from real-device measurements described above. |
 | Timed paired capture | Pending | Implement behind a fake camera first, then validate timestamps on hardware. |

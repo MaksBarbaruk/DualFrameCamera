@@ -1,7 +1,11 @@
 import Foundation
 
 actor InMemoryCaptureRepository: CaptureRepository {
-    private var storage: [UUID: CapturePair] = [:]
+    private var storage: [UUID: CapturePair]
+
+    init(captures: [CapturePair] = []) {
+        storage = Dictionary(uniqueKeysWithValues: captures.map { ($0.id, $0) })
+    }
 
     func captures() -> [CapturePair] {
         Array(storage.values)
@@ -19,4 +23,3 @@ actor InMemoryCaptureRepository: CaptureRepository {
         storage[id] = nil
     }
 }
-
