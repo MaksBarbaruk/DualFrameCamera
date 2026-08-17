@@ -14,6 +14,12 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
         let front: AVCaptureDevice
     }
 
+    private struct CaptureReservation: Sendable {
+        let id: UUID
+        let rearGeneration: UInt64
+        let frontGeneration: UInt64
+    }
+
     private let session = AVCaptureMultiCamSession()
     private let sessionQueue = DispatchQueue(label: "com.maksbarbaruk.dualcamera.session", qos: .userInitiated)
     private let rearOutputQueue = DispatchQueue(label: "com.maksbarbaruk.dualcamera.frames.rear", qos: .userInitiated)
@@ -26,7 +32,7 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
 
     private var isConfigured = false
     private var wantsToRun = false
-    private var captureInProgress = false
+    private var activeCaptureID: UUID?
     private var rearInput: AVCaptureDeviceInput?
     private var frontInput: AVCaptureDeviceInput?
     private var rearPort: AVCaptureInput.Port?
@@ -122,9 +128,7 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
                 }
 
                 self.wantsToRun = false
-                self.captureInProgress = false
-                self.rearCollector.cancelAll()
-                self.frontCollector.cancelAll()
+                self.cancelPendingCapture()
                 if self.session.isRunning {
                     self.session.stopRunning()
                 }
@@ -135,16 +139,17 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
     }
 
     func capturePair() async throws -> CapturedPairPayload {
-        try await reserveCapture()
+        let reservation = try await reserveCapture()
         defer {
             sessionQueue.async { [weak self] in
-                self?.captureInProgress = false
+                guard self?.activeCaptureID == reservation.id else { return }
+                self?.activeCaptureID = nil
             }
         }
 
-        let rearFrame = try await rearCollector.captureNextFrame()
-        emit(.capturePhase(.rearCaptured))
-        emit(.capturePhase(.waitingForFront))
+        let rearFrame = try await rearCollector.captureNextFrame(generation: reservation.rearGeneration)
+        try await validateCapture(reservation.id, emitting: .rearCaptured)
+        try await validateCapture(reservation.id, emitting: .waitingForFront)
         let remainingDelay = timingPolicy.remainingDelay(
             afterRearUptime: rearFrame.uptimeNanoseconds,
             currentUptime: DispatchTime.now().uptimeNanoseconds
@@ -152,17 +157,19 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
         if remainingDelay > 0 {
             try await Task<Never, Never>.sleep(nanoseconds: remainingDelay)
         }
-        let frontFrame = try await frontCollector.captureNextFrame()
-        emit(.capturePhase(.frontCaptured))
+        try await validateCapture(reservation.id)
+        let frontFrame = try await frontCollector.captureNextFrame(generation: reservation.frontGeneration)
+        try await validateCapture(reservation.id, emitting: .frontCaptured)
 
         let encoder = frameEncoder
-        emit(.capturePhase(.encoding))
+        try await validateCapture(reservation.id, emitting: .encoding)
         let (rearPayload, frontPayload) = try await Task.detached(priority: .userInitiated) {
             (
                 try encoder.encodeHEIF(rearFrame),
                 try encoder.encodeHEIF(frontFrame)
             )
         }.value
+        try await validateCapture(reservation.id)
 
         return CapturedPairPayload(
             id: UUID(),
@@ -243,8 +250,8 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
 }
 
 private extension MultiCamCaptureEngine {
-    func reserveCapture() async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+    private func reserveCapture() async throws -> CaptureReservation {
+        try await withCheckedThrowingContinuation { continuation in
             sessionQueue.async { [weak self] in
                 guard let self else {
                     continuation.resume(throwing: CancellationError())
@@ -254,15 +261,51 @@ private extension MultiCamCaptureEngine {
                     continuation.resume(throwing: CameraCaptureError.sessionNotReady)
                     return
                 }
-                guard !self.captureInProgress else {
+                guard self.activeCaptureID == nil else {
                     continuation.resume(throwing: CameraCaptureError.captureInProgress)
                     return
                 }
 
-                self.captureInProgress = true
+                let reservation = CaptureReservation(
+                    id: UUID(),
+                    rearGeneration: self.rearCollector.currentGeneration(),
+                    frontGeneration: self.frontCollector.currentGeneration()
+                )
+                self.activeCaptureID = reservation.id
+                continuation.resume(returning: reservation)
+            }
+        }
+    }
+
+    func validateCapture(
+        _ id: UUID,
+        emitting phase: CameraCapturePhase? = nil
+    ) async throws {
+        try Task.checkCancellation()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            sessionQueue.async { [weak self] in
+                guard let self,
+                      self.activeCaptureID == id,
+                      self.wantsToRun,
+                      self.session.isRunning else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                if let phase {
+                    self.emit(.capturePhase(phase))
+                }
                 continuation.resume()
             }
         }
+        try Task.checkCancellation()
+    }
+
+    /// Must be called on `sessionQueue` so the active reservation and session lifecycle move together.
+    func cancelPendingCapture() {
+        activeCaptureID = nil
+        rearCollector.cancelAll()
+        frontCollector.cancelAll()
     }
 
     func configureSession() throws {
@@ -283,6 +326,9 @@ private extension MultiCamCaptureEngine {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
 
+        guard session.canAddInput(rearInput), session.canAddInput(frontInput) else {
+            throw CameraCaptureError.underlying("The selected camera inputs cannot be added to the MultiCam session.")
+        }
         session.addInputWithNoConnections(rearInput)
         session.addInputWithNoConnections(frontInput)
         rearInput.videoMinFrameDurationOverride = CMTime(value: 1, timescale: 30)
@@ -503,8 +549,10 @@ private extension MultiCamCaptureEngine {
                 object: session,
                 queue: nil
             ) { [weak self] notification in
-                self?.sessionQueue.async {
-                    self?.handleInterruption(notification)
+                let reasonRawValue = (notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? NSNumber)?.intValue
+                guard let engine = self else { return }
+                engine.sessionQueue.async { [engine, reasonRawValue] in
+                    engine.handleInterruption(reasonRawValue: reasonRawValue)
                 }
             },
             center.addObserver(
@@ -512,8 +560,9 @@ private extension MultiCamCaptureEngine {
                 object: session,
                 queue: nil
             ) { [weak self] _ in
-                self?.sessionQueue.async {
-                    self?.handleInterruptionEnded()
+                guard let engine = self else { return }
+                engine.sessionQueue.async { [engine] in
+                    engine.handleInterruptionEnded()
                 }
             },
             center.addObserver(
@@ -521,8 +570,15 @@ private extension MultiCamCaptureEngine {
                 object: session,
                 queue: nil
             ) { [weak self] notification in
-                self?.sessionQueue.async {
-                    self?.handleRuntimeError(notification)
+                let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError
+                let message = error?.localizedDescription ?? "The camera session encountered a runtime error."
+                let isMediaServicesReset = error?.code == .mediaServicesWereReset
+                guard let engine = self else { return }
+                engine.sessionQueue.async { [engine, message, isMediaServicesReset] in
+                    engine.handleRuntimeError(
+                        message: message,
+                        isMediaServicesReset: isMediaServicesReset
+                    )
                 }
             },
             center.addObserver(
@@ -530,10 +586,13 @@ private extension MultiCamCaptureEngine {
                 object: nil,
                 queue: nil
             ) { [weak self] _ in
-                self?.sessionQueue.async {
-                    guard let self, self.session.isRunning else { return }
-                    self.session.stopRunning()
-                    self.emit(.stopped)
+                guard let engine = self else { return }
+                engine.sessionQueue.async { [engine] in
+                    engine.cancelPendingCapture()
+                    if engine.session.isRunning {
+                        engine.session.stopRunning()
+                    }
+                    engine.emit(.stopped)
                 }
             },
             center.addObserver(
@@ -541,10 +600,11 @@ private extension MultiCamCaptureEngine {
                 object: nil,
                 queue: nil
             ) { [weak self] _ in
-                self?.sessionQueue.async {
-                    guard let self, self.wantsToRun, !self.session.isRunning else { return }
-                    self.session.startRunning()
-                    self.emit(self.session.isRunning ? .running : .runtimeError(
+                guard let engine = self else { return }
+                engine.sessionQueue.async { [engine] in
+                    guard engine.wantsToRun, !engine.session.isRunning else { return }
+                    engine.session.startRunning()
+                    engine.emit(engine.session.isRunning ? .running : .runtimeError(
                         message: "The cameras did not resume after returning to the foreground.",
                         recovered: false
                     ))
@@ -553,11 +613,8 @@ private extension MultiCamCaptureEngine {
         ]
     }
 
-    func handleInterruption(_ notification: Notification) {
-        let reasonValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? NSNumber
-        let reason = reasonValue.flatMap {
-            AVCaptureSession.InterruptionReason(rawValue: $0.intValue)
-        }
+    func handleInterruption(reasonRawValue: Int?) {
+        let reason = reasonRawValue.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
         let message: String
 
         switch reason {
@@ -575,9 +632,7 @@ private extension MultiCamCaptureEngine {
             message = "The camera session was interrupted."
         }
 
-        rearCollector.cancelAll()
-        frontCollector.cancelAll()
-        captureInProgress = false
+        cancelPendingCapture()
         emit(.interrupted(message: message))
     }
 
@@ -592,18 +647,17 @@ private extension MultiCamCaptureEngine {
         }
     }
 
-    func handleRuntimeError(_ notification: Notification) {
-        let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError
-        let isMediaServicesReset = error?.code == .mediaServicesWereReset
+    func handleRuntimeError(message: String, isMediaServicesReset: Bool) {
         var recovered = false
 
+        cancelPendingCapture()
         if isMediaServicesReset, wantsToRun {
             session.startRunning()
             recovered = session.isRunning
         }
 
         emit(.runtimeError(
-            message: error?.localizedDescription ?? "The camera session encountered a runtime error.",
+            message: message,
             recovered: recovered
         ))
         if recovered {
@@ -613,8 +667,10 @@ private extension MultiCamCaptureEngine {
 
     func observePressure(on device: AVCaptureDevice) {
         let observation = device.observe(\.systemPressureState, options: [.initial, .new]) { [weak self] device, _ in
-            self?.sessionQueue.async {
-                self?.handlePressure(device.systemPressureState.level)
+            let level = device.systemPressureState.level
+            guard let engine = self else { return }
+            engine.sessionQueue.async { [engine, level] in
+                engine.handlePressure(level)
             }
         }
         pressureObservations.append(observation)
@@ -650,6 +706,9 @@ private extension MultiCamCaptureEngine {
             rearInput.videoMinFrameDurationOverride = CMTime(value: 1, timescale: maximumFPS)
             frontInput.videoMinFrameDurationOverride = CMTime(value: 1, timescale: maximumFPS)
             session.commitConfiguration()
+        }
+        if mappedLevel == .shutdown {
+            cancelPendingCapture()
         }
         emit(.pressureChanged(mappedLevel))
     }

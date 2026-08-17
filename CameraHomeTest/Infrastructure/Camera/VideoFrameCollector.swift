@@ -11,14 +11,19 @@ nonisolated final class VideoFrameCollector: NSObject, AVCaptureVideoDataOutputS
     private let lock = NSLock()
     private var waiters: [UUID: CheckedContinuation<CapturedVideoFrame, Error>] = [:]
     private var cancelledWaiters: Set<UUID> = []
+    private var cancellationGeneration: UInt64 = 0
 
-    func captureNextFrame() async throws -> CapturedVideoFrame {
+    func currentGeneration() -> UInt64 {
+        lock.synchronized { cancellationGeneration }
+    }
+
+    func captureNextFrame(generation: UInt64) async throws -> CapturedVideoFrame {
         let requestID = UUID()
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 lock.synchronized {
-                    if cancelledWaiters.remove(requestID) != nil {
+                    if generation != cancellationGeneration || cancelledWaiters.remove(requestID) != nil {
                         continuation.resume(throwing: CancellationError())
                     } else {
                         waiters[requestID] = continuation
@@ -32,6 +37,7 @@ nonisolated final class VideoFrameCollector: NSObject, AVCaptureVideoDataOutputS
 
     func cancelAll() {
         let continuations: [CheckedContinuation<CapturedVideoFrame, any Error>] = lock.synchronized {
+            cancellationGeneration &+= 1
             let continuations = Array(waiters.values)
             waiters.removeAll()
             cancelledWaiters.removeAll()

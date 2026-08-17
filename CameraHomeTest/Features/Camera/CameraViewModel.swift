@@ -8,6 +8,7 @@ final class CameraViewModel {
     private let persistCapture: PersistCapturePairUseCase
     private var eventTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
+    private var stopTask: Task<Void, Never>?
 
     private(set) var state: CameraCaptureState = .idle
     private(set) var capability: CameraCapability?
@@ -62,6 +63,10 @@ final class CameraViewModel {
     }
 
     func prepare() async {
+        if let stopTask {
+            await stopTask.value
+            self.stopTask = nil
+        }
         startObservingEvents()
         state = .starting
         let capability = await cameraClient.capability()
@@ -114,6 +119,15 @@ final class CameraViewModel {
             state = .starting
             try await cameraClient.start()
             state = .ready
+        } catch is CancellationError {
+            progressTask?.cancel()
+            switch state {
+            case .failed, .interrupted:
+                break
+            default:
+                state = .idle
+            }
+            return
         } catch {
             supportTitle = "Unable to start cameras"
             supportMessage = error.localizedDescription
@@ -131,6 +145,15 @@ final class CameraViewModel {
             let capture = try await persistCapture(payload)
             state = .ready
             return capture
+        } catch is CancellationError {
+            progressTask?.cancel()
+            switch state {
+            case .failed, .interrupted:
+                break
+            default:
+                state = .idle
+            }
+            return nil
         } catch {
             supportTitle = "Capture failed"
             supportMessage = error.localizedDescription
@@ -144,7 +167,9 @@ final class CameraViewModel {
         eventTask = nil
         progressTask?.cancel()
         progressTask = nil
-        Task {
+        let previousStopTask = stopTask
+        stopTask = Task {
+            await previousStopTask?.value
             await cameraClient.stop()
         }
     }

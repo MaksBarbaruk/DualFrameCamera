@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-enum AppTab: String, CaseIterable, Hashable, Identifiable, Sendable {
+nonisolated enum AppTab: String, CaseIterable, Hashable, Identifiable, Sendable {
     case camera
     case feed
 
@@ -22,7 +22,7 @@ enum AppTab: String, CaseIterable, Hashable, Identifiable, Sendable {
     }
 }
 
-enum AppRoute: Hashable, Sendable {
+nonisolated enum AppRoute: Hashable, Sendable {
     case captureDetail(UUID)
 }
 

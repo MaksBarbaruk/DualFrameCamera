@@ -3,6 +3,7 @@ import UIKit
 
 struct CameraView: View {
     @Environment(AppCoordinator.self) private var coordinator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: CameraViewModel
     private let previewSource: any CameraPreviewSource
 
@@ -77,6 +78,8 @@ private extension CameraView {
             FrontCameraPlaceholder(previewSource: previewSource)
                 .frame(width: 118, height: 158)
                 .padding(14)
+                .scaleEffect(viewModel.frontCaptureProgress == nil ? 1 : 1.035)
+                .animation(stageAnimation, value: viewModel.frontCaptureProgress != nil)
 
             VStack {
                 Spacer()
@@ -106,6 +109,7 @@ private extension CameraView {
                 supportCard
                     .padding(14)
                     .padding(.top, 166)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             if let progress = viewModel.frontCaptureProgress {
@@ -122,6 +126,8 @@ private extension CameraView {
                 .stroke(AppTheme.subtleBorder, lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.42), radius: 28, y: 16)
+        .animation(stageAnimation, value: viewModel.showsSupportCard)
+        .animation(stageAnimation, value: viewModel.frontCaptureProgress != nil)
     }
 
     var supportCard: some View {
@@ -190,6 +196,8 @@ private extension CameraView {
             }
             .buttonStyle(.plain)
             .disabled(!viewModel.isCaptureEnabled)
+            .scaleEffect(viewModel.isCaptureEnabled ? 1 : 0.92)
+            .animation(stageAnimation, value: viewModel.isCaptureEnabled)
             .accessibilityLabel("Capture rear and front photos")
 
             Spacer()
@@ -197,6 +205,10 @@ private extension CameraView {
             ControlButton(systemImage: "arrow.triangle.2.circlepath.camera.fill", label: "Swap")
         }
         .padding(.horizontal, 10)
+    }
+
+    var stageAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.84)
     }
 }
 
@@ -313,6 +325,7 @@ private struct ControlButton: View {
 }
 
 private struct CaptureSequenceHUD: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let progress: Double
 
     var body: some View {
@@ -328,6 +341,7 @@ private struct CaptureSequenceHUD: View {
                         style: StrokeStyle(lineWidth: 7, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
+                    .animation(reduceMotion ? nil : .linear(duration: 0.06), value: progress)
 
                 Image(systemName: "person.crop.circle")
                     .font(.title)

@@ -9,9 +9,13 @@ struct AppRootView: View {
     var body: some View {
         @Bindable var coordinator = coordinator
         @Bindable var progressController = progressController
+        let selectedTab = Binding(
+            get: { coordinator.selectedTab },
+            set: { coordinator.select($0) }
+        )
 
         NavigationStack(path: $coordinator.path) {
-            TabView(selection: $coordinator.selectedTab) {
+            TabView(selection: selectedTab) {
                 CameraView(
                     cameraClient: container.cameraCaptureClient,
                     previewSource: container.cameraPreviewSource,

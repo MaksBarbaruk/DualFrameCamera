@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-struct AppAlert: Identifiable, Equatable, Sendable {
+nonisolated struct AppAlert: Identifiable, Equatable, Sendable {
     let id = UUID()
     let title: String
     let message: String
@@ -53,4 +53,3 @@ final class ProgressController {
         isProcessing = !operationIDs.isEmpty
     }
 }
-

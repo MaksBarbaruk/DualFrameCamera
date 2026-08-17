@@ -1,6 +1,6 @@
 import Foundation
 
-struct AppContainer: Sendable {
+nonisolated struct AppContainer: Sendable {
     let captureRepository: any CaptureRepository
     let cameraCaptureClient: any CameraCaptureClient
     let cameraPreviewSource: any CameraPreviewSource

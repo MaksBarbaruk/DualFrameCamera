@@ -21,12 +21,15 @@ extension View {
 }
 
 struct StatusPill: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let title: String
     let systemImage: String
     var tint: Color = AppTheme.accent
 
     var body: some View {
         Label(title, systemImage: systemImage)
+            .contentTransition(.opacity)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: title)
             .font(.caption.weight(.semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 12)
@@ -37,4 +40,3 @@ struct StatusPill: View {
             }
     }
 }
-

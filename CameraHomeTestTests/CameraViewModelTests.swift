@@ -66,6 +66,27 @@ struct CameraViewModelTests {
         #expect(viewModel.canRetry)
         #expect(viewModel.supportTitle == "Capture failed")
     }
+
+    @Test
+    func lifecycleCancellationDoesNotPublishOrPresentAnError() async throws {
+        let camera = SuspendedCameraClient()
+        let repository = RecordingCaptureRepository()
+        let viewModel = CameraViewModel(
+            cameraClient: camera,
+            repository: repository
+        )
+        await viewModel.prepare()
+
+        let captureTask = Task { await viewModel.capture() }
+        try await waitForCaptureRequest(on: camera)
+        await camera.cancelCapture()
+        let capture = await captureTask.value
+
+        #expect(capture == nil)
+        #expect(viewModel.state == .idle)
+        #expect(!viewModel.showsSupportCard)
+        #expect(await repository.savedPayloadIDs().isEmpty)
+    }
 }
 
 private extension CameraViewModelTests {
@@ -140,6 +161,11 @@ private actor SuspendedCameraClient: CameraCaptureClient {
         captureContinuation?.resume(
             throwing: CameraCaptureError.underlying("Synthetic failure")
         )
+        captureContinuation = nil
+    }
+
+    func cancelCapture() {
+        captureContinuation?.resume(throwing: CancellationError())
         captureContinuation = nil
     }
 }

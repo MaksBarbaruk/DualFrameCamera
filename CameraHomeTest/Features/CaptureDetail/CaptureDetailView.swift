@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CaptureDetailView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: CaptureDetailViewModel
 
     init(captureID: UUID, repository: any CaptureRepository) {
@@ -60,7 +61,7 @@ private extension CaptureDetailView {
                     Spacer()
 
                     Button {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
                             viewModel.swapPrimaryImage()
                         }
                     } label: {
@@ -91,4 +92,3 @@ private extension CaptureDetailView {
     }
     .preferredColorScheme(.dark)
 }
-

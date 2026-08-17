@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FeedView: View {
     @Environment(AppCoordinator.self) private var coordinator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: FeedViewModel
 
     private let columns = [
@@ -89,8 +90,13 @@ private extension FeedView {
                     CaptureGridTile(capture: capture)
                 }
                 .buttonStyle(.plain)
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
         }
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.3),
+            value: viewModel.captures.map(\.id)
+        )
     }
 
     var emptyView: some View {

@@ -6,12 +6,16 @@ struct CameraPreviewLayerView: UIViewRepresentable {
     let source: any CameraPreviewSource
     let position: CaptureAsset.Position
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> PreviewSurfaceView {
         let view = PreviewSurfaceView()
         view.source = source
         view.previewLayer.videoGravity = .resizeAspectFill
 
-        Task {
+        context.coordinator.attachmentTask = Task {
             await source.attachPreviewLayer(view.previewLayer, position: position)
         }
 
@@ -20,12 +24,18 @@ struct CameraPreviewLayerView: UIViewRepresentable {
 
     func updateUIView(_ uiView: PreviewSurfaceView, context: Context) { }
 
-    static func dismantleUIView(_ uiView: PreviewSurfaceView, coordinator: Void) {
+    static func dismantleUIView(_ uiView: PreviewSurfaceView, coordinator: Coordinator) {
         guard let source = uiView.source else { return }
         let layer = uiView.previewLayer
+        let attachmentTask = coordinator.attachmentTask
         Task {
+            await attachmentTask?.value
             await source.detachPreviewLayer(layer)
         }
+    }
+
+    final class Coordinator {
+        var attachmentTask: Task<Void, Never>?
     }
 
     final class PreviewSurfaceView: UIView {

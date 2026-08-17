@@ -1,6 +1,6 @@
 import Foundation
 
-enum FileCaptureRepositoryError: LocalizedError, Equatable, Sendable {
+nonisolated enum FileCaptureRepositoryError: LocalizedError, Equatable, Sendable {
     case captureAlreadyExists
     case invalidCaptureMetadata
 

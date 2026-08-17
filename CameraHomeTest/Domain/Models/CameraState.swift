@@ -1,20 +1,20 @@
 import Foundation
 
-enum CameraAuthorization: Equatable, Sendable {
+nonisolated enum CameraAuthorization: Equatable, Sendable {
     case notDetermined
     case authorized
     case denied
     case restricted
 }
 
-enum CameraCapability: Equatable, Sendable {
+nonisolated enum CameraCapability: Equatable, Sendable {
     case available
     case simulator
     case multiCamUnavailable
     case supportedPairUnavailable
 }
 
-enum CameraPressureLevel: Equatable, Sendable {
+nonisolated enum CameraPressureLevel: Equatable, Sendable {
     case nominal
     case fair
     case serious
@@ -22,14 +22,14 @@ enum CameraPressureLevel: Equatable, Sendable {
     case shutdown
 }
 
-enum CameraCapturePhase: Equatable, Sendable {
+nonisolated enum CameraCapturePhase: Equatable, Sendable {
     case rearCaptured
     case waitingForFront
     case frontCaptured
     case encoding
 }
 
-enum CameraSessionEvent: Equatable, Sendable {
+nonisolated enum CameraSessionEvent: Equatable, Sendable {
     case running
     case stopped
     case interrupted(message: String)
@@ -39,7 +39,7 @@ enum CameraSessionEvent: Equatable, Sendable {
     case capturePhase(CameraCapturePhase)
 }
 
-enum CameraCaptureState: Equatable, Sendable {
+nonisolated enum CameraCaptureState: Equatable, Sendable {
     case idle
     case requestingPermission
     case starting
@@ -56,7 +56,7 @@ enum CameraCaptureState: Equatable, Sendable {
     }
 }
 
-enum CameraCaptureError: LocalizedError, Equatable, Sendable {
+nonisolated enum CameraCaptureError: LocalizedError, Equatable, Sendable {
     case permissionDenied
     case permissionRestricted
     case multiCamUnsupported

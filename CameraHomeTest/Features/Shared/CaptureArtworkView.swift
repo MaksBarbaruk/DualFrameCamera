@@ -67,6 +67,7 @@ struct CaptureArtworkView: View {
 }
 
 private struct LocalAssetImage: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let asset: CaptureAsset
     let fallbackColors: [Color]
     let symbol: String
@@ -86,6 +87,7 @@ private struct LocalAssetImage: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
+                        .transition(.opacity)
                 } else {
                     Image(systemName: symbol)
                         .font(.system(size: 52, weight: .light))
@@ -93,6 +95,7 @@ private struct LocalAssetImage: View {
                 }
             }
             .clipped()
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: image != nil)
             .task(id: requestID(for: geometry.size)) {
                 guard asset.fileURL.isFileURL else { return }
                 image = await ThumbnailProvider.shared.image(
