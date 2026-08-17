@@ -64,13 +64,12 @@ Domain
 
 Infrastructure
   MultiCamCaptureEngine
-  CameraPermissionClient
-  CameraSessionEventMonitor
+  VideoFrameCollector, PixelBufferEncoder
+  CameraPreviewLayerView, ThumbnailProvider
 
 Data
   FileCaptureRepository
-  CaptureMetadataStore
-  ThumbnailProvider
+  InMemoryCaptureRepository
 
 Features
   Camera
@@ -84,7 +83,7 @@ Features
 - AVFoundation session configuration and capture state are owned by one serialized camera executor.
 - Capture timing uses monotonic uptime timestamps, not wall-clock time or a UI timer.
 - File persistence and thumbnail decoding run outside the main actor.
-- Delegate callbacks are bridged into structured concurrency with one continuation owner per capture request.
+- Delegate callbacks are bridged into structured concurrency through lock-protected collectors, unique capture reservations, and cancellation generations.
 
 #### Navigation and progress
 
@@ -100,7 +99,7 @@ Features
 - The selected front/rear devices must appear together in `AVCaptureDevice.DiscoverySession.supportedMultiCamDeviceSets`.
 - MultiCam sessions use input-priority configuration, so each device format is selected explicitly.
 - Only formats whose `isMultiCamSupported` value is true are eligible.
-- `hardwareCost` and `systemPressureCost` must remain sustainable.
+- Initial `hardwareCost` must fit the session budget, and runtime pressure must be observed and mitigated.
 - The SDK does not support the naive assumption that two independent `AVCapturePhotoOutput` objects can always be added to one session. The final still-capture topology must therefore be proven on the target hardware.
 
 #### Vertical-slice decision
@@ -132,7 +131,7 @@ Application Support/Captures/<capture-id>/
   metadata.json
 ```
 
-Metadata includes the identifier, creation date, capture timestamps, image dimensions, orientation, and schema version. Writes go to a temporary directory and are moved into the feed only after both assets and metadata succeed. A partial failure is rolled back.
+Metadata includes the identifier, creation date, capture timestamps, image dimensions, and schema version. Orientation is normalized by the portrait connection and ImageIO transform in this version. Writes go to a temporary directory and are moved into the feed only after both assets and metadata succeed. A partial failure is rolled back.
 
 The grid uses ImageIO downsampling and a bounded in-memory thumbnail cache. Full-resolution images are loaded only for detail presentation or export.
 
@@ -149,8 +148,8 @@ The grid uses ImageIO downsampling and a bounded in-memory thumbnail cache. Full
 
 #### Automated
 
-- Rear capture is invoked before any suspension point in the orchestration use case.
-- Front capture is scheduled for exactly 1.5 seconds later using an injected clock.
+- The monotonic front target is exactly 1.5 seconds after the rear frame timestamp.
+- Time already spent after the rear frame is subtracted from the remaining delay.
 - Repeated shutter taps cannot overlap capture pairs.
 - Cancellation and error transitions return the state machine to a recoverable state.
 - Persistence publishes a feed item only after two independent assets are committed.
@@ -175,6 +174,8 @@ The grid uses ImageIO downsampling and a bounded in-memory thumbnail cache. Full
 5. `feat: persist paired captures and connect review flow`
 6. `test: verify capture orchestration and document tradeoffs`
 7. `docs: record implementation handoff status`
+8. `fix: harden camera lifecycle and navigation invariants`
+9. `docs: explain implementation architecture and decisions`
 
 The public repository will use a neutral product name and will not include company names in its repository name.
 
@@ -192,16 +193,20 @@ Last updated: 2026-08-17
 | Git hygiene | Complete | `.gitignore` excludes user-specific Xcode state; existing local `xcuserdata` is intentionally not committed. |
 | Clean Architecture foundation | Complete | Application, domain, data, feature-ready infrastructure boundaries, dependency container, and use cases compile. |
 | Navigation and progress | Complete | Typed tab/detail navigation and operation-aware centralized error/progress presentation are implemented. |
+| Architecture audit | Complete | Domain remains framework-free; display-only thumbnail work moved to Infrastructure; application composition is the only production dependency binding point. |
+| Concurrency audit | Complete; device behavior pending | Main Actor UI boundaries are explicit, AVFoundation mutations are session-queue owned, strict checking is enabled, capture reservation/generation cancellation closes lifecycle races, and rapid stop/start ordering is serialized. |
+| Navigation audit | Complete | Native and programmatic tab selection now pass through the coordinator and clear stale detail paths; successful persistence still selects Moments and opens the saved detail. |
 | Camera/feed UI | Complete | Polished camera stage, capability messaging, capture progress treatment, feed states, adaptive grid, and swappable detail UI compile and were visually checked in the simulator. |
+| Motion/accessibility polish | Complete | State-driven camera, feed, thumbnail, and detail transitions were added; every custom animation honors Reduce Motion. |
 | MultiCam session | Implemented; hardware validation pending | One `AVCaptureMultiCamSession` discovers a supported device set, configures explicit MultiCam formats, connects both previews and frame outputs, budgets hardware cost, throttles under pressure, and responds to lifecycle/runtime events. Generic simulator and iOS device SDK builds succeed. |
 | Still-capture topology | Provisional implementation complete | Dedicated rear/front `AVCaptureVideoDataOutput` streams provide timestamped frames and off-main HEIF encoding. Physical-device sharpness and format measurements will determine whether this remains the final path. |
 | Timed paired capture | Implemented; hardware validation pending | The rear stream supplies the first frame immediately; the front frame is requested from a monotonic target exactly 1.5 seconds after the rear frame timestamp. UI progress is presentation-only. |
 | Local persistence | Complete | Each pair is staged as `rear.heic`, `front.heic`, and `metadata.json`, then atomically moved into Application Support. Startup removes abandoned staging directories. |
 | Feed image loading | Complete | ImageIO creates size-bounded, orientation-correct thumbnails off the main actor with a bounded in-memory cache. Full source files remain independent. |
 | Capture-to-review flow | Complete | Successful persistence refreshes Moments, selects the feed tab, and opens the newly saved pair in detail. |
-| Automated tests | Implemented; runner blocked locally | Coordinator routing, exact monotonic timing math, elapsed-work compensation, overlapping-shutter rejection, capture persistence/error mapping, atomic repository publication, staging cleanup, and deletion have tests. The full suite builds; execution is blocked before test-host launch because every available local CoreSimulator runtime currently fails data migration. |
+| Automated tests | Implemented; runner blocked locally | Coordinator routing, exact monotonic timing math, elapsed-work compensation, overlapping-shutter rejection, lifecycle cancellation, capture persistence/error mapping, atomic repository publication, staging cleanup, and deletion have tests. The full suite builds with complete strict-concurrency checking. The latest booted-runtime attempt did not materialize a test worker or launch the host and was interrupted after 135 seconds; earlier runtimes also reported data-migration failures. |
 | Physical-device verification | Blocked by device availability | Known devices are currently offline; continue simulator-safe work first. |
-| README and submission notes | In progress | README skeleton contains build/test steps and architecture; hardware measurements and final trade-offs remain pending. |
+| README and implementation guide | Complete; hardware results pending | README now provides reviewer setup/status and `IMPLEMENTATION_GUIDE.md` records architecture, concurrency, capture sequencing, navigation, persistence, decisions, limitations, and extension points. |
 | Public repository | Complete | Published the reviewable `main` history to the neutral public repository `MaksBarbaruk/DualFrameCamera`. |
 
 ### Baseline environment
