@@ -187,18 +187,18 @@ Last updated: 2026-08-17
 | --- | --- | --- |
 | Assignment analysis | Complete | Requirements and hard constraints translated into acceptance criteria above. |
 | Starter build | Complete | Default project builds successfully for a generic iOS Simulator destination. |
-| Minimum deployment target | Pending | Starter currently targets iOS 26.5; change to iOS 17 in the foundation milestone. |
-| Git hygiene | In progress | `.gitignore` added with this document; existing local `xcuserdata` is intentionally not committed. |
-| Clean Architecture foundation | Pending | Add application, domain, data, infrastructure, feature, and test boundaries. |
-| Navigation and progress | Pending | Adapt the useful typed-navigation and centralized-error ideas from the reference project. |
+| Minimum deployment target | Complete | Project and test targets now deploy to iOS 17. |
+| Git hygiene | Complete | `.gitignore` excludes user-specific Xcode state; existing local `xcuserdata` is intentionally not committed. |
+| Clean Architecture foundation | Complete | Application, domain, data, feature-ready infrastructure boundaries, dependency container, and use cases compile. |
+| Navigation and progress | Complete | Typed tab/detail navigation and operation-aware centralized error/progress presentation are implemented. |
 | Camera/feed UI | Pending | Build a polished preview-safe shell before hardware is connected. |
 | MultiCam session | Pending | Requires implementation; simulator can exercise unsupported-state UI only. |
 | Still-capture topology | Investigation required | Must be selected from real-device measurements described above. |
 | Timed paired capture | Pending | Implement behind a fake camera first, then validate timestamps on hardware. |
 | Local persistence | Pending | Implement atomic two-asset storage and downsampled feed thumbnails. |
-| Automated tests | Pending | The starter currently has no test target. |
+| Automated tests | In progress | Unit-test target is active; initial coordinator tests pass on the iOS Simulator. Capture and persistence tests follow with those features. |
 | Physical-device verification | Blocked by device availability | Known devices are currently offline; continue simulator-safe work first. |
-| README and submission notes | Pending | Add build steps, architecture, measurements, supported devices, and trade-offs. |
+| README and submission notes | In progress | README skeleton contains build/test steps and architecture; hardware measurements and final trade-offs remain pending. |
 | Public repository | Pending | Authenticated GitHub connection is available; publish after reviewable commits exist. |
 
 ### Baseline environment
@@ -218,4 +218,3 @@ Last updated: 2026-08-17
 - Measure actual rear exposure latency and rear-to-front interval.
 - Select and document the sharpness/latency trade-off for photo-quality prioritization or video-buffer extraction.
 - Record tested-device models and operating-system versions in the README.
-

@@ -1,0 +1,53 @@
+import Foundation
+import Observation
+
+enum AppTab: String, CaseIterable, Hashable, Identifiable, Sendable {
+    case camera
+    case feed
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .camera: "Camera"
+        case .feed: "Moments"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .camera: "camera.fill"
+        case .feed: "square.grid.2x2.fill"
+        }
+    }
+}
+
+enum AppRoute: Hashable, Sendable {
+    case captureDetail(UUID)
+}
+
+@MainActor
+@Observable
+final class AppCoordinator {
+    var selectedTab: AppTab = .camera
+    var path: [AppRoute] = []
+
+    func select(_ tab: AppTab) {
+        selectedTab = tab
+        path.removeAll()
+    }
+
+    func showCapture(id: UUID) {
+        path.append(.captureDetail(id))
+    }
+
+    func navigateBack() {
+        guard !path.isEmpty else { return }
+        path.removeLast()
+    }
+
+    func navigateToRoot() {
+        path.removeAll()
+    }
+}
+
