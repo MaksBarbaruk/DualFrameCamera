@@ -141,12 +141,12 @@ sequenceDiagram
     Engine->>SQ: reserve unique capture ID + collector generations
     Engine->>Rear: await next frame
     Rear-->>Engine: pixel buffer + uptime
-    Engine->>SQ: validate reservation; emit rear/waiting phases
+    Engine->>SQ: validate reservation and emit rear/waiting phases
     Engine->>Engine: sleep only until rear uptime + 1.5 s
     Engine->>SQ: validate reservation
     Engine->>Front: await next frame for reserved generation
     Front-->>Engine: pixel buffer + uptime
-    Engine->>SQ: validate; emit front/encoding phases
+    Engine->>SQ: validate and emit front/encoding phases
     Engine->>Encoder: encode both HEIF assets
     Encoder-->>Engine: independent payloads
     Engine->>SQ: final lifecycle/reservation validation
