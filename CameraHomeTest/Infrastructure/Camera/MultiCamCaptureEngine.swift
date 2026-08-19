@@ -243,6 +243,7 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
                     self.session.commitConfiguration()
                 }
                 self.previewLayers[position] = nil
+                layerReference.value.session = nil
                 continuation.resume()
             }
         }
@@ -517,6 +518,9 @@ private extension MultiCamCaptureEngine {
         let port = position == .rear ? rearPort : frontPort
         guard let port else { return }
 
+        // MultiCam preview connections are formed manually, so the layer must first
+        // be attached to the session without creating an implicit input connection.
+        layer.setSessionWithNoConnection(session)
         let connection = AVCaptureConnection(inputPort: port, videoPreviewLayer: layer)
         configureVideoConnection(connection, position: position)
         guard session.canAddConnection(connection) else { return }

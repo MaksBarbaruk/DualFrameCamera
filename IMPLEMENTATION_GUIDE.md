@@ -97,7 +97,7 @@ Startup performs the following work:
 4. Select only formats whose `isMultiCamSupported` flag is true, preferring binned formats at up to 1920 pixels wide that sustain 30 fps.
 5. Configure continuous autofocus, auto exposure, auto white balance, subject-area monitoring, and smooth autofocus where available.
 6. Validate and add both inputs without automatic connections.
-7. Add one video-data output and one preview connection for each input port.
+7. Associate each preview layer with the session using `setSessionWithNoConnection(_:)`, then add one video-data output and one explicit preview connection for each input port.
 8. Mirror only the front connection and use the portrait rotation angle.
 9. Reduce both streams to 20 fps if the initial hardware cost is high; fail clearly if `hardwareCost` still exceeds the supported budget.
 10. Install interruption, lifecycle, runtime-error, and pressure observers before running.
