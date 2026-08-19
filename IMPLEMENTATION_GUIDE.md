@@ -286,7 +286,9 @@ Physical testing should still profile transient peaks because AVFoundation owns 
 The visual hierarchy is designed for a quick reviewer walkthrough:
 
 - full rear preview as the primary stage;
-- bordered front picture-in-picture with an explicit `+1.5s` label;
+- bordered picture-in-picture with explicit `REAR · FIRST` / `FRONT · +1.5s` timing labels;
+- animated front/rear presentation swapping that keeps both preview layers connected and does not alter capture order;
+- a rear-camera torch toggle using a moderate level to limit sustained MultiCam heat;
 - status pill and contextual support card;
 - large central shutter with disabled/ready visual states;
 - focused “Hold steady” progress HUD;
@@ -311,6 +313,7 @@ Haptics are issued at shutter intent and after successful persistence. They are 
 | Serious/critical pressure | Reduce both stream frame rates | Pressure state emitted; session remains usable if the system permits |
 | Pressure shutdown | Cancel pair | Paused/cooling message |
 | Persistence failure | Roll back staging | Capture failure card; no feed item |
+| Torch unavailable | Leave camera session and capture state unchanged | Disable the control when known unavailable; show a focused alert for a runtime failure |
 
 ## 13. Testing and verification
 
@@ -343,8 +346,9 @@ A supported iPhone is required before calling the camera portion complete. The v
 6. background during rear wait, background during encoding, and foreground recovery;
 7. an interruption or camera-service reset scenario where practical;
 8. hardware cost, pressure transitions, dropped-frame behavior, and memory peaks;
-9. persistence across force quit and relaunch;
-10. the required screen recordings and final repository update.
+9. preview swapping and torch on/off behavior, including automatic shutoff on lifecycle events;
+10. persistence across force quit and relaunch;
+11. the required screen recordings and final repository update.
 
 If sharpness is insufficient, compare a prepared photo-output route using the same measurements. Do not change topology based on nominal resolution alone; timing, exposure latency, preview stability, and sustained pressure are part of the decision.
 
@@ -383,7 +387,7 @@ Restricting orientation matches the fixed camera connection rotation and polishe
 - Replace `MultiCamCaptureEngine` behind `CameraCaptureClient` if a photo-output topology wins device testing.
 - Add delete/share actions by using the existing delete use case and source file URLs.
 - Add pagination or retention policy inside feed use cases without changing storage adapters.
-- Add movable/resizable picture-in-picture as presentation state only; source files remain unchanged.
+- Extend the existing preview swap with a movable/resizable picture-in-picture; source files remain unchanged.
 - Add landscape by introducing an orientation coordinator that updates every capture and preview connection on `sessionQueue`.
 - Add telemetry behind a domain-neutral diagnostics port for measured intervals, dropped frames, costs, and pressure.
 

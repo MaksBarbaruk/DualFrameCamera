@@ -16,6 +16,8 @@ Generic simulator and iOS device SDK builds succeed with complete strict-concurr
 ## Feature walkthrough
 
 - Rear-first dual-camera stage with a front picture-in-picture preview
+- Animated live-preview swap that does not change rear-first capture order
+- Rear-camera torch toggle with lifecycle and thermal-safe shutoff
 - Shutter enabled only while both camera streams are ready
 - Hold-steady progress treatment during the 1.5-second sequence
 - Explicit permission, unsupported-device, interruption, runtime-error, and pressure states
@@ -131,6 +133,7 @@ Before final submission, connect a supported iPhone and record:
 - sharpness in daylight, indoor, lower light, and motion;
 - memory, dropped frames, hardware cost, and pressure behavior;
 - background/foreground and interruption recovery;
+- live preview swapping and rear torch behavior before, during, and after capture;
 - persistence after relaunch and the required screen recordings.
 
 The current video-buffer topology favors deterministic timing and stable warm streams. If device evidence does not meet the sharpness bar, compare a prepared photo-output topology behind the existing camera protocol before making a final choice.

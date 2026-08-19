@@ -63,6 +63,7 @@ nonisolated enum CameraCaptureError: LocalizedError, Equatable, Sendable {
     case supportedPairUnavailable
     case sessionNotReady
     case captureInProgress
+    case torchUnavailable
     case incompleteCapture
     case sessionInterrupted(String)
     case underlying(String)
@@ -81,6 +82,8 @@ nonisolated enum CameraCaptureError: LocalizedError, Equatable, Sendable {
             "The camera is not ready yet."
         case .captureInProgress:
             "A paired capture is already in progress."
+        case .torchUnavailable:
+            "The rear camera torch is unavailable in the current camera configuration."
         case .incompleteCapture:
             "Both images could not be captured. Please try again."
         case .sessionInterrupted(let message):

@@ -128,12 +128,55 @@ nonisolated final class MultiCamCaptureEngine: CameraCaptureClient, CameraPrevie
                 }
 
                 self.wantsToRun = false
+                self.turnTorchOffIfNeeded()
                 self.cancelPendingCapture()
                 if self.session.isRunning {
                     self.session.stopRunning()
                 }
                 self.emit(.stopped)
                 continuation.resume()
+            }
+        }
+    }
+
+    func isTorchAvailable() async -> Bool {
+        await withCheckedContinuation { continuation in
+            sessionQueue.async { [weak self] in
+                guard let device = self?.rearInput?.device else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                continuation.resume(returning: self?.canUseTorch(on: device) == true)
+            }
+        }
+    }
+
+    func setTorchEnabled(_ enabled: Bool) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            sessionQueue.async { [weak self] in
+                guard let self,
+                      self.session.isRunning,
+                      let device = self.rearInput?.device,
+                      self.canUseTorch(on: device) else {
+                    continuation.resume(throwing: CameraCaptureError.torchUnavailable)
+                    return
+                }
+
+                do {
+                    try device.lockForConfiguration()
+                    defer { device.unlockForConfiguration() }
+                    if enabled {
+                        // A moderate level limits heat during sustained MultiCam use.
+                        try device.setTorchModeOn(level: 0.5)
+                    } else {
+                        device.torchMode = .off
+                    }
+                    continuation.resume()
+                } catch {
+                    continuation.resume(
+                        throwing: CameraCaptureError.underlying(error.localizedDescription)
+                    )
+                }
             }
         }
     }
@@ -393,6 +436,7 @@ private extension MultiCamCaptureEngine {
     }
 
     func resetSessionConfiguration() {
+        turnTorchOffIfNeeded()
         pressureObservations.forEach { $0.invalidate() }
         pressureObservations.removeAll()
         previewConnections.removeAll()
@@ -540,6 +584,29 @@ private extension MultiCamCaptureEngine {
             connection.isVideoMirrored = true
         }
     }
+
+    func canUseTorch(on device: AVCaptureDevice) -> Bool {
+        device.hasTorch &&
+            device.isTorchAvailable &&
+            device.isTorchModeSupported(.on) &&
+            device.isTorchModeSupported(.off)
+    }
+
+    func turnTorchOffIfNeeded() {
+        guard let device = rearInput?.device,
+              device.hasTorch,
+              device.torchMode != .off,
+              device.isTorchModeSupported(.off) else { return }
+
+        do {
+            try device.lockForConfiguration()
+            defer { device.unlockForConfiguration() }
+            device.torchMode = .off
+        } catch {
+            // Session shutdown and interruption recovery must continue even if the
+            // system has already made the torch unavailable.
+        }
+    }
 }
 
 private extension MultiCamCaptureEngine {
@@ -592,6 +659,7 @@ private extension MultiCamCaptureEngine {
             ) { [weak self] _ in
                 guard let engine = self else { return }
                 engine.sessionQueue.async { [engine] in
+                    engine.turnTorchOffIfNeeded()
                     engine.cancelPendingCapture()
                     if engine.session.isRunning {
                         engine.session.stopRunning()
@@ -636,6 +704,7 @@ private extension MultiCamCaptureEngine {
             message = "The camera session was interrupted."
         }
 
+        turnTorchOffIfNeeded()
         cancelPendingCapture()
         emit(.interrupted(message: message))
     }
@@ -654,6 +723,7 @@ private extension MultiCamCaptureEngine {
     func handleRuntimeError(message: String, isMediaServicesReset: Bool) {
         var recovered = false
 
+        turnTorchOffIfNeeded()
         cancelPendingCapture()
         if isMediaServicesReset, wantsToRun {
             session.startRunning()
@@ -712,6 +782,7 @@ private extension MultiCamCaptureEngine {
             session.commitConfiguration()
         }
         if mappedLevel == .shutdown {
+            turnTorchOffIfNeeded()
             cancelPendingCapture()
         }
         emit(.pressureChanged(mappedLevel))

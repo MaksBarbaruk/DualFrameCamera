@@ -181,7 +181,7 @@ The public repository will use a neutral product name and will not include compa
 
 ## What We Have
 
-Last updated: 2026-08-17
+Last updated: 2026-08-19
 
 ### Current status
 
@@ -196,7 +196,7 @@ Last updated: 2026-08-17
 | Architecture audit | Complete | Domain remains framework-free; display-only thumbnail work moved to Infrastructure; application composition is the only production dependency binding point. |
 | Concurrency audit | Complete; device behavior pending | Main Actor UI boundaries are explicit, AVFoundation mutations are session-queue owned, strict checking is enabled, capture reservation/generation cancellation closes lifecycle races, and rapid stop/start ordering is serialized. |
 | Navigation audit | Complete | Native and programmatic tab selection now pass through the coordinator and clear stale detail paths; successful persistence still selects Moments and opens the saved detail. |
-| Camera/feed UI | Complete | Polished camera stage, capability messaging, capture progress treatment, feed states, adaptive grid, and swappable detail UI compile and were visually checked in the simulator. |
+| Camera/feed UI | Complete; control walkthrough pending | Polished camera stage, capability messaging, capture progress treatment, animated live-preview swap, rear torch control, feed states, adaptive grid, and swappable detail UI compile. The base UI was visually checked in the simulator; the new live controls require the connected-device walkthrough because the local simulator runtime currently fails migration. |
 | Motion/accessibility polish | Complete | State-driven camera, feed, thumbnail, and detail transitions were added; every custom animation honors Reduce Motion. |
 | MultiCam session | Implemented; hardware validation pending | One `AVCaptureMultiCamSession` discovers a supported device set, configures explicit MultiCam formats, connects both previews and frame outputs, budgets hardware cost, throttles under pressure, and responds to lifecycle/runtime events. Generic simulator and iOS device SDK builds succeed. |
 | Still-capture topology | Provisional implementation complete | Dedicated rear/front `AVCaptureVideoDataOutput` streams provide timestamped frames and off-main HEIF encoding. Physical-device sharpness and format measurements will determine whether this remains the final path. |
@@ -205,7 +205,7 @@ Last updated: 2026-08-17
 | Feed image loading | Complete | ImageIO creates size-bounded, orientation-correct thumbnails off the main actor with a bounded in-memory cache. Full source files remain independent. |
 | Capture-to-review flow | Complete | Successful persistence refreshes Moments, selects the feed tab, and opens the newly saved pair in detail. |
 | Automated tests | Implemented; runner blocked locally | Coordinator routing, exact monotonic timing math, elapsed-work compensation, overlapping-shutter rejection, lifecycle cancellation, capture persistence/error mapping, atomic repository publication, staging cleanup, and deletion have tests. The full suite builds with complete strict-concurrency checking. The latest booted-runtime attempt did not materialize a test worker or launch the host and was interrupted after 135 seconds; earlier runtimes also reported data-migration failures. |
-| Physical-device verification | Blocked by device availability | Known devices are currently offline; continue simulator-safe work first. |
+| Physical-device verification | In progress | An iPhone 16 Pro is connected. Real paired capture and persistence were observed; a missing manual preview-layer session association was found and fixed. Preview, torch, timing, sharpness, lifecycle, and sustained-pressure retesting remain. |
 | README and implementation guide | Complete; hardware results pending | README now provides reviewer setup/status and `IMPLEMENTATION_GUIDE.md` records architecture, concurrency, capture sequencing, navigation, persistence, decisions, limitations, and extension points. |
 | Public repository | Complete | Published the reviewable `main` history to the neutral public repository `MaksBarbaruk/DualFrameCamera`. |
 
@@ -214,9 +214,9 @@ Last updated: 2026-08-17
 - Xcode 26.5, build 17F42.
 - Starter scheme: `CameraHomeTest`.
 - Starter branch: `main`, one initial commit; implementation is now tracked by the public `origin` remote.
-- Known but currently unavailable devices:
+- Known devices:
   - iPhone 14 Pro Max
-  - iPhone 16 Pro
+  - iPhone 16 Pro — currently connected
   - iPhone 11
 
 ### Open validation items

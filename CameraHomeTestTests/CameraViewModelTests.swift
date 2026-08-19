@@ -87,6 +87,25 @@ struct CameraViewModelTests {
         #expect(!viewModel.showsSupportCard)
         #expect(await repository.savedPayloadIDs().isEmpty)
     }
+
+    @Test
+    func torchControlReflectsRearCameraAvailabilityAndState() async throws {
+        let camera = SuspendedCameraClient(torchAvailable: true)
+        let viewModel = CameraViewModel(
+            cameraClient: camera,
+            repository: RecordingCaptureRepository()
+        )
+        await viewModel.prepare()
+
+        #expect(viewModel.isTorchAvailable)
+        try await viewModel.toggleTorch()
+        #expect(viewModel.isTorchEnabled)
+        #expect(await camera.torchRequests() == [true])
+
+        try await viewModel.toggleTorch()
+        #expect(!viewModel.isTorchEnabled)
+        #expect(await camera.torchRequests() == [true, false])
+    }
 }
 
 private extension CameraViewModelTests {
@@ -128,12 +147,24 @@ private extension CameraViewModelTests {
 private actor SuspendedCameraClient: CameraCaptureClient {
     private var captureContinuation: CheckedContinuation<CapturedPairPayload, any Error>?
     private var requestCount = 0
+    private let torchAvailable: Bool
+    private var requestedTorchStates: [Bool] = []
+
+    init(torchAvailable: Bool = false) {
+        self.torchAvailable = torchAvailable
+    }
 
     func authorizationStatus() -> CameraAuthorization { .authorized }
     func requestAuthorization() -> CameraAuthorization { .authorized }
     func capability() -> CameraCapability { .available }
     func start() { }
     func stop() { }
+    func isTorchAvailable() -> Bool { torchAvailable }
+
+    func setTorchEnabled(_ enabled: Bool) throws {
+        guard torchAvailable else { throw CameraCaptureError.torchUnavailable }
+        requestedTorchStates.append(enabled)
+    }
 
     func capturePair() async throws -> CapturedPairPayload {
         requestCount += 1
@@ -150,6 +181,10 @@ private actor SuspendedCameraClient: CameraCaptureClient {
 
     func captureRequestCount() -> Int {
         requestCount
+    }
+
+    func torchRequests() -> [Bool] {
+        requestedTorchStates
     }
 
     func completeCapture(with payload: CapturedPairPayload) {

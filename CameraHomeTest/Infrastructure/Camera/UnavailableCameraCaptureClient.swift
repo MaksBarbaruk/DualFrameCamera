@@ -24,6 +24,12 @@ nonisolated final class UnavailableCameraCaptureClient: CameraCaptureClient, Cam
 
     func stop() { }
 
+    func isTorchAvailable() -> Bool { false }
+
+    func setTorchEnabled(_ enabled: Bool) throws {
+        throw CameraCaptureError.torchUnavailable
+    }
+
     func capturePair() throws -> CapturedPairPayload {
         throw CameraCaptureError.sessionNotReady
     }

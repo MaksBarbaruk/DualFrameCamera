@@ -5,6 +5,8 @@ struct CameraView: View {
     @Environment(AppCoordinator.self) private var coordinator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: CameraViewModel
+    @State private var frontIsPrimary = false
+    @State private var torchErrorMessage: String?
     private let previewSource: any CameraPreviewSource
 
     init(
@@ -45,6 +47,17 @@ struct CameraView: View {
         .onDisappear {
             viewModel.stop()
         }
+        .alert(
+            "Unable to Control Torch",
+            isPresented: Binding(
+                get: { torchErrorMessage != nil },
+                set: { if !$0 { torchErrorMessage = nil } }
+            )
+        ) {
+            Button("OK") { torchErrorMessage = nil }
+        } message: {
+            Text(torchErrorMessage ?? CameraCaptureError.torchUnavailable.localizedDescription)
+        }
     }
 }
 
@@ -73,25 +86,37 @@ private extension CameraView {
 
     func cameraStage(height: CGFloat) -> some View {
         ZStack(alignment: .topTrailing) {
-            RearCameraPlaceholder(previewSource: previewSource)
+            CameraPreviewPane(previewSource: previewSource, position: .rear)
+                .previewPlacement(
+                    position: .rear,
+                    isInset: frontIsPrimary,
+                    isEmphasized: false
+                )
+                .zIndex(frontIsPrimary ? 2 : 0)
 
-            FrontCameraPlaceholder(previewSource: previewSource)
-                .frame(width: 118, height: 158)
-                .padding(14)
-                .scaleEffect(viewModel.frontCaptureProgress == nil ? 1 : 1.035)
-                .animation(stageAnimation, value: viewModel.frontCaptureProgress != nil)
+            CameraPreviewPane(previewSource: previewSource, position: .front)
+                .previewPlacement(
+                    position: .front,
+                    isInset: !frontIsPrimary,
+                    isEmphasized: !frontIsPrimary && viewModel.frontCaptureProgress != nil
+                )
+                .zIndex(frontIsPrimary ? 0 : 2)
 
             VStack {
                 Spacer()
 
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Label("REAR", systemImage: "camera.fill")
+                        Label(frontIsPrimary ? "FRONT" : "REAR", systemImage: "camera.fill")
                             .font(.caption2.weight(.heavy))
                             .tracking(1.4)
                             .foregroundStyle(AppTheme.accent)
 
-                        Text("First frame captures instantly")
+                        Text(
+                            frontIsPrimary
+                                ? "Captures 1.5 seconds after rear"
+                                : "First frame captures instantly"
+                        )
                             .font(.subheadline.weight(.semibold))
                     }
 
@@ -104,18 +129,21 @@ private extension CameraView {
                 .padding(18)
                 .background(.ultraThinMaterial)
             }
+            .zIndex(3)
 
             if viewModel.showsSupportCard {
                 supportCard
                     .padding(14)
                     .padding(.top, 166)
                     .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(4)
             }
 
             if let progress = viewModel.frontCaptureProgress {
                 CaptureSequenceHUD(progress: progress)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.scale.combined(with: .opacity))
+                    .zIndex(5)
             }
         }
         .frame(maxWidth: .infinity)
@@ -128,6 +156,7 @@ private extension CameraView {
         .shadow(color: .black.opacity(0.42), radius: 28, y: 16)
         .animation(stageAnimation, value: viewModel.showsSupportCard)
         .animation(stageAnimation, value: viewModel.frontCaptureProgress != nil)
+        .animation(stageAnimation, value: frontIsPrimary)
     }
 
     var supportCard: some View {
@@ -168,7 +197,24 @@ private extension CameraView {
 
     var captureControls: some View {
         HStack {
-            ControlButton(systemImage: "bolt.slash.fill", label: "Flash")
+            ControlButton(
+                systemImage: viewModel.isTorchEnabled ? "bolt.fill" : "bolt.slash.fill",
+                label: "Torch",
+                isSelected: viewModel.isTorchEnabled,
+                isEnabled: viewModel.isTorchAvailable &&
+                    !viewModel.isTorchChanging &&
+                    viewModel.state == .ready,
+                accessibilityValue: viewModel.isTorchEnabled ? "On" : "Off"
+            ) {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Task {
+                    do {
+                        try await viewModel.toggleTorch()
+                    } catch {
+                        torchErrorMessage = error.localizedDescription
+                    }
+                }
+            }
 
             Spacer()
 
@@ -202,7 +248,18 @@ private extension CameraView {
 
             Spacer()
 
-            ControlButton(systemImage: "arrow.triangle.2.circlepath.camera.fill", label: "Swap")
+            ControlButton(
+                systemImage: "arrow.triangle.2.circlepath.camera.fill",
+                label: "Swap",
+                isSelected: frontIsPrimary,
+                isEnabled: true,
+                accessibilityValue: frontIsPrimary ? "Front camera primary" : "Rear camera primary"
+            ) {
+                UISelectionFeedbackGenerator().selectionChanged()
+                withAnimation(stageAnimation) {
+                    frontIsPrimary.toggle()
+                }
+            }
         }
         .padding(.horizontal, 10)
     }
@@ -212,77 +269,52 @@ private extension CameraView {
     }
 }
 
-private struct RearCameraPlaceholder: View {
+private struct CameraPreviewPane: View {
     let previewSource: any CameraPreviewSource
+    let position: CaptureAsset.Position
 
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.16, green: 0.19, blue: 0.25),
-                    Color(red: 0.05, green: 0.07, blue: 0.11)
-                ],
+                colors: colors,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             Circle()
-                .fill(AppTheme.accent.opacity(0.15))
-                .frame(width: 320)
-                .blur(radius: 42)
-                .offset(x: -120, y: -190)
+                .fill(glowColor)
+                .frame(width: position == .rear ? 320 : 150)
+                .blur(radius: position == .rear ? 42 : 24)
+                .offset(
+                    x: position == .rear ? -120 : 50,
+                    y: position == .rear ? -190 : -80
+                )
 
-            Image(systemName: "mountain.2.fill")
-                .font(.system(size: 100, weight: .light))
-                .foregroundStyle(.white.opacity(0.12))
+            Image(systemName: position == .rear ? "mountain.2.fill" : "person.crop.circle.fill")
+                .font(.system(size: position == .rear ? 100 : 72, weight: .light))
+                .foregroundStyle(.white.opacity(position == .rear ? 0.12 : 0.72))
 
-            CameraPreviewLayerView(source: previewSource, position: .rear)
+            CameraPreviewLayerView(source: previewSource, position: position)
 
-            ViewfinderGrid()
-                .stroke(.white.opacity(0.08), lineWidth: 0.8)
-        }
-    }
-}
-
-private struct FrontCameraPlaceholder: View {
-    let previewSource: any CameraPreviewSource
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [AppTheme.coral.opacity(0.95), Color(red: 0.26, green: 0.09, blue: 0.16)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            Circle()
-                .fill(.white.opacity(0.14))
-                .frame(width: 96)
-                .offset(x: 40, y: -60)
-
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 62))
-                .foregroundStyle(.white.opacity(0.82))
-
-            CameraPreviewLayerView(source: previewSource, position: .front)
-
-            VStack {
-                Spacer()
-                Text("FRONT · +1.5s")
-                    .font(.system(size: 9, weight: .heavy))
-                    .tracking(0.8)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.3), in: Capsule())
-                    .padding(9)
+            if position == .rear {
+                ViewfinderGrid()
+                    .stroke(.white.opacity(0.08), lineWidth: 0.8)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(.white.opacity(0.3), lineWidth: 1.5)
+        .accessibilityLabel(position == .rear ? "Rear camera preview" : "Front camera preview")
+    }
+
+    private var colors: [Color] {
+        switch position {
+        case .rear:
+            [Color(red: 0.16, green: 0.19, blue: 0.25), Color(red: 0.05, green: 0.07, blue: 0.11)]
+        case .front:
+            [AppTheme.coral.opacity(0.95), Color(red: 0.26, green: 0.09, blue: 0.16)]
         }
-        .shadow(color: .black.opacity(0.4), radius: 16, y: 8)
+    }
+
+    private var glowColor: Color {
+        position == .rear ? AppTheme.accent.opacity(0.15) : .white.opacity(0.14)
     }
 }
 
@@ -304,23 +336,74 @@ private struct ViewfinderGrid: Shape {
 private struct ControlButton: View {
     let systemImage: String
     let label: String
+    let isSelected: Bool
+    let isEnabled: Bool
+    let accessibilityValue: String
+    let action: () -> Void
 
     var body: some View {
-        Button(action: {}) {
+        Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: systemImage)
                     .font(.headline)
+                    .foregroundStyle(isSelected ? .black : .white)
                     .frame(width: 44, height: 44)
-                    .background(AppTheme.surface, in: Circle())
-                    .overlay { Circle().stroke(AppTheme.subtleBorder) }
+                    .background(isSelected ? AppTheme.accent : AppTheme.surface, in: Circle())
+                    .overlay {
+                        Circle().stroke(
+                            isSelected ? AppTheme.accent.opacity(0.8) : AppTheme.subtleBorder
+                        )
+                    }
 
                 Text(label)
                     .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isSelected ? AppTheme.accent : .secondary)
             }
         }
         .buttonStyle(.plain)
-        .disabled(true)
+        .opacity(isEnabled ? 1 : 0.42)
+        .disabled(!isEnabled)
+        .accessibilityValue(accessibilityValue)
+    }
+}
+
+private extension View {
+    func previewPlacement(
+        position: CaptureAsset.Position,
+        isInset: Bool,
+        isEmphasized: Bool
+    ) -> some View {
+        frame(
+            maxWidth: isInset ? nil : .infinity,
+            maxHeight: isInset ? nil : .infinity
+        )
+        .frame(
+            width: isInset ? 118 : nil,
+            height: isInset ? 158 : nil
+        )
+        .clipShape(
+            RoundedRectangle(cornerRadius: isInset ? 22 : 0, style: .continuous)
+        )
+        .overlay {
+            if isInset {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(.white.opacity(0.3), lineWidth: 1.5)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if isInset {
+                Text(position == .rear ? "REAR · FIRST" : "FRONT · +1.5s")
+                    .font(.system(size: 9, weight: .heavy))
+                    .tracking(0.8)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.3), in: Capsule())
+                    .padding(9)
+            }
+        }
+        .shadow(color: .black.opacity(isInset ? 0.4 : 0), radius: 16, y: 8)
+        .padding(isInset ? 14 : 0)
+        .scaleEffect(isEmphasized ? 1.035 : 1)
     }
 }
 

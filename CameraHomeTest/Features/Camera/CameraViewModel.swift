@@ -9,9 +9,13 @@ final class CameraViewModel {
     private var eventTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
     private var stopTask: Task<Void, Never>?
+    private var activeTorchOperationID: UUID?
 
     private(set) var state: CameraCaptureState = .idle
     private(set) var capability: CameraCapability?
+    private(set) var isTorchAvailable = false
+    private(set) var isTorchEnabled = false
+    private(set) var isTorchChanging = false
     private(set) var supportTitle = "Preparing cameras"
     private(set) var supportMessage = "Checking this device for simultaneous front and rear capture."
 
@@ -67,6 +71,7 @@ final class CameraViewModel {
             await stopTask.value
             self.stopTask = nil
         }
+        resetTorchPresentation()
         startObservingEvents()
         state = .starting
         let capability = await cameraClient.capability()
@@ -118,6 +123,7 @@ final class CameraViewModel {
         do {
             state = .starting
             try await cameraClient.start()
+            await refreshTorchAvailability()
             state = .ready
         } catch is CancellationError {
             progressTask?.cancel()
@@ -133,6 +139,27 @@ final class CameraViewModel {
             supportMessage = error.localizedDescription
             state = .failed(message: supportMessage)
         }
+    }
+
+    func toggleTorch() async throws {
+        guard state == .ready, isTorchAvailable, !isTorchChanging else {
+            throw CameraCaptureError.torchUnavailable
+        }
+
+        let operationID = UUID()
+        activeTorchOperationID = operationID
+        isTorchChanging = true
+        defer {
+            if activeTorchOperationID == operationID {
+                activeTorchOperationID = nil
+                isTorchChanging = false
+            }
+        }
+
+        let shouldEnable = !isTorchEnabled
+        try await cameraClient.setTorchEnabled(shouldEnable)
+        guard activeTorchOperationID == operationID else { return }
+        isTorchEnabled = shouldEnable
     }
 
     func capture() async -> CapturePair? {
@@ -167,6 +194,7 @@ final class CameraViewModel {
         eventTask = nil
         progressTask?.cancel()
         progressTask = nil
+        resetTorchPresentation()
         let previousStopTask = stopTask
         stopTask = Task {
             await previousStopTask?.value
@@ -194,12 +222,17 @@ final class CameraViewModel {
         switch event {
         case .running:
             state = .ready
+            Task { [weak self] in
+                await self?.refreshTorchAvailability()
+            }
         case .stopped:
+            resetTorchPresentation()
             if capability == .available {
                 state = .idle
             }
         case .interrupted(let message):
             progressTask?.cancel()
+            resetTorchPresentation()
             supportTitle = "Camera paused"
             supportMessage = message
             state = .interrupted(message: message)
@@ -207,9 +240,11 @@ final class CameraViewModel {
             state = .starting
         case .pressureChanged(let level):
             if level == .shutdown {
+                resetTorchPresentation()
                 state = .interrupted(message: "The cameras paused because the device needs to cool down.")
             }
         case .runtimeError(let message, let recovered):
+            resetTorchPresentation()
             supportTitle = recovered ? "Camera recovered" : "Camera error"
             supportMessage = message
             state = recovered ? .ready : .failed(message: message)
@@ -243,5 +278,16 @@ final class CameraViewModel {
                 self?.state = .waitingForFront(progress: Double(step) / Double(steps))
             }
         }
+    }
+
+    private func refreshTorchAvailability() async {
+        isTorchAvailable = await cameraClient.isTorchAvailable()
+    }
+
+    private func resetTorchPresentation() {
+        activeTorchOperationID = nil
+        isTorchAvailable = false
+        isTorchEnabled = false
+        isTorchChanging = false
     }
 }

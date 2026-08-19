@@ -21,6 +21,8 @@ nonisolated protocol CameraCaptureClient: Sendable {
     func capability() async -> CameraCapability
     func start() async throws
     func stop() async
+    func isTorchAvailable() async -> Bool
+    func setTorchEnabled(_ enabled: Bool) async throws
     func capturePair() async throws -> CapturedPairPayload
     func sessionEvents() async -> AsyncStream<CameraSessionEvent>
 }
