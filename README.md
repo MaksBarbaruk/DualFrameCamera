@@ -8,10 +8,10 @@ The project has no third-party dependencies. It uses SwiftUI, Observation, Swift
 
 The Clean Architecture foundation, polished camera/feed/detail UI, production-shaped MultiCam engine, timed paired-frame capture, cancellation-safe lifecycle, atomic local persistence, downsampled thumbnail pipeline, and typed capture-to-review navigation are implemented.
 
-Generic simulator and iOS device SDK builds succeed with complete strict-concurrency checking. Physical-device validation remains intentionally open for camera timing, sharpness, preview correctness, and sustained resource cost.
+Generic simulator and iOS device SDK builds succeed with complete strict-concurrency checking. The complete functional and visual device checklist passed on an iPhone 16 Pro running iOS 26.6; the validation record is included below.
 
 - [Implementation guide](IMPLEMENTATION_GUIDE.md) — architecture, capture sequence, concurrency ownership, navigation, persistence, trade-offs, and extension points
-- [Investigation and status plan](IMPLEMENTATION_PLAN.md) — target acceptance criteria, current evidence, and hardware checklist
+- [Investigation and status plan](IMPLEMENTATION_PLAN.md) — target acceptance criteria, current evidence, and device-validation record
 
 ## Feature walkthrough
 
@@ -43,7 +43,7 @@ Support is determined at runtime rather than from an optimistic model-name allow
 3. exposes a front/rear pair in `supportedMultiCamDeviceSets`;
 4. accepts the selected inputs, outputs, connections, and sustainable hardware budget.
 
-Candidate local devices are iPhone 11, iPhone 14 Pro Max, and iPhone 16 Pro, but none is claimed as tested until it is physically connected and the checklist below is completed.
+Physical-device validation was completed on an **iPhone 16 Pro (`iPhone17,1`) running iOS 26.6 (`23G71`)** on 2026-08-19. An iPhone 11 and iPhone 14 Pro Max were available as candidate devices but were not tested and are not part of the documented support claim. Runtime capability checks remain authoritative even on the tested model.
 
 ## Build
 
@@ -123,20 +123,28 @@ The repository writes a hidden staging directory and publishes the complete pair
 - atomic publication of two assets and metadata;
 - staging cleanup and pair deletion.
 
-## Physical-device handoff
+## Physical-device validation
 
-Before final submission, connect a supported iPhone and record:
+The full functional and visual walkthrough was completed on 2026-08-19 using an iPhone 16 Pro (`iPhone17,1`) on iOS 26.6 (`23G71`).
 
-- device model, iOS version, selected camera pair and formats;
-- simultaneous preview/mirroring/orientation evidence;
-- rear-to-front timestamp deltas over repeated captures;
-- sharpness in daylight, indoor, lower light, and motion;
-- memory, dropped frames, hardware cost, and pressure behavior;
-- background/foreground and interruption recovery;
-- live preview swapping and rear torch behavior before, during, and after capture;
-- persistence after relaunch and the required screen recordings.
+| Scenario | Result |
+| --- | --- |
+| Permission, MultiCam capability, and session startup | Passed |
+| Simultaneous rear/front previews, portrait orientation, cropping, and front mirroring | Passed |
+| Immediate rear-first capture followed by the front capture | Passed; the 1.5-second target is driven by monotonic sample timestamps and separately covered by timing-policy tests |
+| Sharpness checks in daylight, indoor light, lower light, and with motion | Passed in the manual walkthrough |
+| Two independent HEIF assets, Moments navigation, detail swap, and persistence after relaunch | Passed |
+| Repeated captures, overlap rejection, background/foreground, and recovery behavior | Passed |
+| Live preview swap and rear torch toggle, including lifecycle shutoff | Passed |
+| Sustained preview/capture responsiveness and pressure handling | Passed in the manual walkthrough |
 
-The current video-buffer topology favors deterministic timing and stable warm streams. If device evidence does not meet the sharpness bar, compare a prepared photo-output topology behind the existing camera protocol before making a final choice.
+No raw timing, dropped-frame, memory, or pressure trace was supplied for publication, so this repository does not invent quantitative benchmark values. The implementation record distinguishes the confirmed walkthrough from automated timing and lifecycle coverage.
+
+The accepted video-buffer topology favors deterministic timing and stable warm streams on the tested configuration. If a newly supported device fails the sharpness or resource-cost bar, compare a prepared photo-output topology behind the existing camera protocol before changing the feature layers.
+
+## Submission artifacts
+
+The assignment's real-device screen recording and three-minute architecture walkthrough are external submission artifacts and are intentionally not versioned in this source repository.
 
 ## Repository
 

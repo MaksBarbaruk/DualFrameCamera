@@ -7,7 +7,7 @@ This document is the living implementation record for the camera assignment. It 
 - **What we want**: the intended product, architecture, behavior, and acceptance criteria.
 - **What we have**: the implementation status, verified behavior, measurements, and known gaps.
 
-The status section must be updated whenever a milestone changes materially. Hardware-only claims remain unverified until they are measured on a supported physical device.
+The status section must be updated whenever a milestone changes materially. Hardware claims identify the tested device, operating-system build, date, and evidence type; quantitative values are not inferred when the underlying measurement log is unavailable.
 
 ## What We Want
 
@@ -194,19 +194,19 @@ Last updated: 2026-08-19
 | Clean Architecture foundation | Complete | Application, domain, data, feature-ready infrastructure boundaries, dependency container, and use cases compile. |
 | Navigation and progress | Complete | Typed tab/detail navigation and operation-aware centralized error/progress presentation are implemented. |
 | Architecture audit | Complete | Domain remains framework-free; display-only thumbnail work moved to Infrastructure; application composition is the only production dependency binding point. |
-| Concurrency audit | Complete; device behavior pending | Main Actor UI boundaries are explicit, AVFoundation mutations are session-queue owned, strict checking is enabled, capture reservation/generation cancellation closes lifecycle races, and rapid stop/start ordering is serialized. |
+| Concurrency audit | Complete | Main Actor UI boundaries are explicit, AVFoundation mutations are session-queue owned, strict checking is enabled, capture reservation/generation cancellation closes lifecycle races, rapid stop/start ordering is serialized, and the device lifecycle walkthrough passed. |
 | Navigation audit | Complete | Native and programmatic tab selection now pass through the coordinator and clear stale detail paths; successful persistence still selects Moments and opens the saved detail. |
-| Camera/feed UI | Complete; control walkthrough pending | Polished camera stage, capability messaging, capture progress treatment, animated live-preview swap, rear torch control, feed states, adaptive grid, and swappable detail UI compile. The base UI was visually checked in the simulator; the new live controls require the connected-device walkthrough because the local simulator runtime currently fails migration. |
+| Camera/feed UI | Complete | Polished camera stage, capability messaging, capture progress treatment, animated live-preview swap, rear torch control, feed states, adaptive grid, and swappable detail UI compile and passed the connected-device walkthrough. |
 | Motion/accessibility polish | Complete | State-driven camera, feed, thumbnail, and detail transitions were added; every custom animation honors Reduce Motion. |
-| MultiCam session | Implemented; hardware validation pending | One `AVCaptureMultiCamSession` discovers a supported device set, configures explicit MultiCam formats, connects both previews and frame outputs, budgets hardware cost, throttles under pressure, and responds to lifecycle/runtime events. Generic simulator and iOS device SDK builds succeed. |
-| Still-capture topology | Provisional implementation complete | Dedicated rear/front `AVCaptureVideoDataOutput` streams provide timestamped frames and off-main HEIF encoding. Physical-device sharpness and format measurements will determine whether this remains the final path. |
-| Timed paired capture | Implemented; hardware validation pending | The rear stream supplies the first frame immediately; the front frame is requested from a monotonic target exactly 1.5 seconds after the rear frame timestamp. UI progress is presentation-only. |
+| MultiCam session | Complete on tested device | One `AVCaptureMultiCamSession` discovers a supported device set, configures explicit MultiCam formats, connects both previews and frame outputs, budgets hardware cost, throttles under pressure, and responds to lifecycle/runtime events. Simultaneous previews and lifecycle behavior passed on the tested iPhone 16 Pro. |
+| Still-capture topology | Accepted on tested device | Dedicated rear/front `AVCaptureVideoDataOutput` streams provide timestamped frames and off-main HEIF encoding. The visual quality and sustained functional walkthrough passed on the tested iPhone 16 Pro, so this remains the selected topology. |
+| Timed paired capture | Complete on tested device | The rear stream supplies the first frame immediately; the front frame is requested from a monotonic target exactly 1.5 seconds after the rear frame timestamp. The capture sequence passed manually, while exact deadline math and elapsed-work compensation remain covered by automated tests. |
 | Local persistence | Complete | Each pair is staged as `rear.heic`, `front.heic`, and `metadata.json`, then atomically moved into Application Support. Startup removes abandoned staging directories. |
 | Feed image loading | Complete | ImageIO creates size-bounded, orientation-correct thumbnails off the main actor with a bounded in-memory cache. Full source files remain independent. |
 | Capture-to-review flow | Complete | Successful persistence refreshes Moments, selects the feed tab, and opens the newly saved pair in detail. |
 | Automated tests | Implemented; runner blocked locally | Coordinator routing, exact monotonic timing math, elapsed-work compensation, overlapping-shutter rejection, lifecycle cancellation, capture persistence/error mapping, atomic repository publication, staging cleanup, and deletion have tests. The full suite builds with complete strict-concurrency checking. The latest booted-runtime attempt did not materialize a test worker or launch the host and was interrupted after 135 seconds; earlier runtimes also reported data-migration failures. |
-| Physical-device verification | In progress | An iPhone 16 Pro is connected. Real paired capture and persistence were observed; a missing manual preview-layer session association was found and fixed. Preview, torch, timing, sharpness, lifecycle, and sustained-pressure retesting remain. |
-| README and implementation guide | Complete; hardware results pending | README now provides reviewer setup/status and `IMPLEMENTATION_GUIDE.md` records architecture, concurrency, capture sequencing, navigation, persistence, decisions, limitations, and extension points. |
+| Physical-device verification | Complete for iPhone 16 Pro | The full functional and visual checklist passed on 2026-08-19 using an iPhone 16 Pro (`iPhone17,1`) on iOS 26.6 (`23G71`). No other model is claimed as tested. |
+| README and implementation guide | Complete | README provides reviewer setup and tested-device status; `IMPLEMENTATION_GUIDE.md` records architecture, concurrency, capture sequencing, navigation, persistence, decisions, limitations, and the device-validation result. |
 | Public repository | Complete | Published the reviewable `main` history to the neutral public repository `MaksBarbaruk/DualFrameCamera`. |
 
 ### Baseline environment
@@ -214,22 +214,30 @@ Last updated: 2026-08-19
 - Xcode 26.5, build 17F42.
 - Starter scheme: `CameraHomeTest`.
 - Starter branch: `main`, one initial commit; implementation is now tracked by the public `origin` remote.
-- Known devices:
-  - iPhone 14 Pro Max
-  - iPhone 16 Pro — currently connected
-  - iPhone 11
+- Tested device: iPhone 16 Pro (`iPhone17,1`), iOS 26.6 (`23G71`), validated 2026-08-19.
+- Untested candidate devices: iPhone 11 and iPhone 14 Pro Max. They are not part of the documented support claim.
 
-### Open validation items
+### Completed physical validation
 
-- Determine which connected device and front/rear pair produce the best sustainable MultiCam format combination.
-- Validate the provisional video-buffer still topology on the physical device and compare it with prepared photo-output routing only if sharpness is insufficient.
-- Measure actual rear exposure latency and rear-to-front interval.
-- Select and document the sharpness/latency trade-off for photo-quality prioritization or video-buffer extraction.
-- Record tested-device models and operating-system versions in the README.
+The tester reported completion of the full checklist on the device and OS build recorded above. The passing walkthrough covered:
+
+- clean permission and runtime-capability handling;
+- simultaneous previews, front mirroring, portrait orientation, and cropping;
+- immediate rear-first capture and the delayed front capture;
+- daylight, indoor, lower-light, and moving-subject sharpness;
+- repeated captures and overlap rejection;
+- background/foreground, interruption, and recovery behavior;
+- live preview swapping and rear torch behavior, including lifecycle shutoff;
+- independent asset persistence, relaunch, Moments navigation, and detail review;
+- sustained preview/capture responsiveness and pressure handling.
+
+The walkthrough establishes the functional support claim for the tested configuration. No raw timestamp series, selected-format dump, dropped-frame count, memory peak, or pressure trace was supplied for inclusion, so the documentation intentionally publishes no fabricated quantitative values.
+
+The required real-device screen recording and three-minute architecture presentation remain external submission artifacts rather than source-controlled project files.
 
 ### Current capture trade-offs
 
 - Video-buffer extraction keeps both cameras continuously warm and makes the rear-to-front interval deterministic without reconnecting capture outputs.
-- The current interval can land up to one source-frame period after the 1.5-second target because the front asset is the first frame delivered after that monotonic deadline. This must be measured under the selected 30/20/15 fps pressure modes.
+- The current interval can land up to one source-frame period after the 1.5-second target because the front asset is the first frame delivered after that monotonic deadline. A future quantitative performance report should characterize this under the selected 30/20/15 fps pressure modes.
 - HEIF encoding runs after both frames are retained, away from the main actor, so encoding time does not shift the front capture deadline.
-- The provisional path favors predictable sequencing and session stability. Physical-device testing still owns the decision on whether its resolution and motion sharpness meet the assignment bar.
+- The accepted path favors predictable sequencing and session stability. Re-evaluate it if another device or future format selection fails the demonstrated sharpness or resource-cost bar.

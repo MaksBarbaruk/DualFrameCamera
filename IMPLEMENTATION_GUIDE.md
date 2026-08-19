@@ -4,7 +4,7 @@
 
 This document explains how the application is structured, how a paired capture moves through the system, and why the main technical choices were made.
 
-The software architecture, navigation, state handling, atomic persistence, simulator UI, strict-concurrency build, and automated test build are implemented. The camera topology is also implemented against the iOS SDK, but camera-specific quality claims are deliberately provisional until a supported physical iPhone is connected. In particular, sharpness, the measured rear-to-front interval, pressure behavior, and sustained memory use need hardware evidence.
+The software architecture, navigation, state handling, atomic persistence, simulator UI, strict-concurrency build, and automated test build are implemented. The complete functional and visual device checklist passed on 2026-08-19 using an iPhone 16 Pro (`iPhone17,1`) running iOS 26.6 (`23G71`). That walkthrough validates the selected camera topology for this configuration; no raw performance trace was supplied for publication, so this guide does not invent quantitative timing, memory, dropped-frame, or pressure values.
 
 The shorter [README](README.md) is the reviewer entry point. [IMPLEMENTATION_PLAN](IMPLEMENTATION_PLAN.md) is the living requirements/status record. This guide is the deeper engineering reference.
 
@@ -34,13 +34,13 @@ On a simulator, the same UI and navigation remain reviewable, but the camera sta
 | iOS 17+ and SwiftUI | iOS 17 deployment target; SwiftUI and Observation presentation | Generic simulator and device SDK builds |
 | Swift Concurrency | Async camera/repository boundaries, actors, task cancellation, detached encoding/downsampling | Complete strict-concurrency build |
 | Clean Architecture | Domain protocols and entities; infrastructure/data adapters; feature view models; app composition root | Dependency audit described below |
-| One MultiCam session | One `AVCaptureMultiCamSession` owned by `MultiCamCaptureEngine` | SDK build; physical validation pending |
-| Simultaneous previews | Explicit preview connections from the rear and front input ports | Physical validation pending |
-| Rear then front after 1.5 s | First rear frame, monotonic deadline, then first front frame at/after the deadline | Timing-policy unit tests; hardware measurement pending |
+| One MultiCam session | One `AVCaptureMultiCamSession` owned by `MultiCamCaptureEngine` | SDK build and iPhone 16 Pro walkthrough |
+| Simultaneous previews | Explicit preview connections from the rear and front input ports | Passed on the tested iPhone 16 Pro |
+| Rear then front after 1.5 s | First rear frame, monotonic deadline, then first front frame at/after the deadline | Timing-policy tests plus physical sequence walkthrough |
 | Separate assets | Independent rear/front HEIF payloads and files | Repository tests |
 | Grid and detail | Adaptive Moments grid and typed detail route with primary-image swap | Simulator UI and coordinator tests |
 | Local persistence | Staging directory followed by one atomic directory move | Repository tests |
-| Unsupported/error states | Capability, authorization, interruption, runtime error, and pressure events mapped to explicit UI states | View-model tests plus device scenarios pending |
+| Unsupported/error states | Capability, authorization, interruption, runtime error, and pressure events mapped to explicit UI states | View-model tests plus completed device scenarios |
 
 ## 4. Architecture
 
@@ -106,7 +106,7 @@ The first implementation is portrait-only. This is reflected in the target orien
 
 ### 5.2 Why video-buffer extraction was selected
 
-The provisional still topology keeps rear and front streams continuously warm using two `AVCaptureVideoDataOutput` instances. The shutter consumes frames already flowing from the configured device pair.
+The selected still topology keeps rear and front streams continuously warm using two `AVCaptureVideoDataOutput` instances. The shutter consumes frames already flowing from the configured device pair.
 
 Benefits:
 
@@ -123,7 +123,7 @@ Trade-offs:
 - the first frame after the target can be up to roughly one source-frame interval late;
 - motion sharpness depends on exposure duration and real lighting, so it cannot be certified in the simulator.
 
-An alternative is still-photo output routing. That path should only replace the current implementation if physical-device comparison shows a meaningful sharpness advantage without harming immediate rear capture, timing, or preview stability. The camera protocol isolates that decision from the rest of the app.
+The completed iPhone 16 Pro walkthrough met the functional, visual-quality, and responsiveness bar, so video-buffer extraction remains the accepted topology for the tested configuration. Still-photo output routing remains an alternative for a future device or format that shows a meaningful sharpness advantage without harming immediate rear capture, timing, or preview stability. The camera protocol isolates that decision from the rest of the app.
 
 ### 5.3 Paired-capture algorithm
 
@@ -279,7 +279,7 @@ Grid and detail views never decode a full source image merely to display a small
 
 The cache is bounded by both count and approximate decoded byte cost. HEIF data is encoded after both source frames are retained, and no pixel-buffer history is maintained. This limits the steady-state memory surface to current preview buffers, at most one in-flight pair, and cached display thumbnails.
 
-Physical testing should still profile transient peaks because AVFoundation owns additional camera pools outside this code.
+The device walkthrough found no user-visible responsiveness issue during sustained use. A future performance report should still profile transient peaks because AVFoundation owns additional camera pools outside this code and no raw memory trace is included here.
 
 ## 11. UI, motion, and accessibility
 
@@ -334,23 +334,30 @@ Build-time verification is run for both simulator and generic device SDK destina
 
 Test execution requires a healthy simulator runtime. On the current machine, CoreSimulator does not materialize the test worker or launch the test host; earlier installed runtimes also reported data-migration failures. The latest command-line attempt was interrupted after 135 seconds with no test process launched. This is an environment limitation rather than a compile failure. The suite should be run from Xcode or the command in the README once a healthy runtime is available.
 
-## 14. Physical-device validation gate
+## 14. Physical-device validation record
 
-A supported iPhone is required before calling the camera portion complete. The validation run should record device model, iOS build, selected rear/front device types and formats, and the following evidence:
+| Field | Value |
+| --- | --- |
+| Validation date | 2026-08-19 |
+| Device | iPhone 16 Pro (`iPhone17,1`) |
+| Operating system | iOS 26.6 (`23G71`) |
+| Evidence | Completed functional and visual walkthrough reported by the tester |
 
-1. clean-install permission flow;
+The passing walkthrough covered:
+
+1. clean-install permission and runtime-capability handling;
 2. simultaneous preview, mirroring, cropping, and portrait orientation;
-3. rear-to-front delta from stored monotonic timestamps over at least ten captures;
-4. daylight, indoor, lower-light, and moving-subject sharpness samples;
+3. immediate rear-first capture and the delayed front capture;
+4. daylight, indoor, lower-light, and moving-subject sharpness;
 5. rapid repeated captures and overlap rejection;
-6. background during rear wait, background during encoding, and foreground recovery;
-7. an interruption or camera-service reset scenario where practical;
-8. hardware cost, pressure transitions, dropped-frame behavior, and memory peaks;
-9. preview swapping and torch on/off behavior, including automatic shutoff on lifecycle events;
-10. persistence across force quit and relaunch;
-11. the required screen recordings and final repository update.
+6. background during the timed wait, background during encoding, foreground recovery, and interruption recovery;
+7. sustained preview/capture responsiveness and pressure handling;
+8. preview swapping and torch on/off behavior, including automatic lifecycle shutoff;
+9. two independent saved assets, navigation into the new Moment, and persistence after relaunch.
 
-If sharpness is insufficient, compare a prepared photo-output route using the same measurements. Do not change topology based on nominal resolution alone; timing, exposure latency, preview stability, and sustained pressure are part of the decision.
+Exact deadline calculation, elapsed-work compensation, overlap rejection, lifecycle cancellation, and atomic publication are also covered at the test boundary. The repository does not include a raw timestamp series, selected-format dump, dropped-frame count, memory peak, or pressure trace, so those quantitative values are intentionally not stated.
+
+This support claim is limited to the tested device and OS above. Every other model must still pass runtime MultiCam/device-pair checks and repeat this checklist before being listed as tested. If another configuration misses the sharpness or resource-cost bar, compare a prepared photo-output route using the same evidence rather than switching based on nominal resolution alone.
 
 ## 15. Key decisions
 
@@ -362,9 +369,9 @@ Protocols exist for the camera and repository because those are external boundar
 
 AVFoundation configuration and `startRunning`/`stopRunning` are blocking, stateful operations. A dedicated serial queue provides deterministic ordering without putting framework objects inside a custom Swift actor that would still need delegate-queue bridging.
 
-### ADR-003: Video-buffer capture as the provisional topology
+### ADR-003: Video-buffer capture as the selected topology
 
-Warm independent streams best satisfy immediate rear capture and deterministic delay in the first vertical slice. Hardware quality evidence owns the final decision.
+Warm independent streams best satisfy immediate rear capture and deterministic delay. The completed iPhone 16 Pro walkthrough accepts this topology for the tested configuration; future devices must repeat the same quality and resource checks.
 
 ### ADR-004: Monotonic time is the source of truth
 
